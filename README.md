@@ -20,6 +20,10 @@ terraform {
 }
 
 provider "slackapp" {
+  // If you want to use non-default base URL for Slack API, use this argument to configure it.
+  // It also can be set via SLACK_BASE_URL environment variable.
+  base_url = "https://slack.com/api/"
+  
   // App configuration token and refresh token can be retrieved from https://api.slack.com/authentication/config-tokens.
   // They are special tokens to manage apps in workspace global.
   // They also can be set via SLACK_APP_CONFIGURATION_TOKEN and SLACK_REFRESH_TOKEN environment variables.

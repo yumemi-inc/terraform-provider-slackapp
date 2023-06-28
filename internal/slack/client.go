@@ -9,7 +9,10 @@ import (
 	"net/url"
 )
 
+const defaultBaseURL = "https://slack.com/api/"
+
 type Client struct {
+	baseURL               string
 	appConfigurationToken *string
 	refreshToken          *string
 	httpClient            *http.Client
@@ -17,6 +20,7 @@ type Client struct {
 
 func NewClient(appConfigurationToken string) *Client {
 	return &Client{
+		baseURL:               defaultBaseURL,
 		appConfigurationToken: &appConfigurationToken,
 		httpClient:            http.DefaultClient,
 	}
@@ -24,13 +28,20 @@ func NewClient(appConfigurationToken string) *Client {
 
 func NewClientFromRefreshToken(refreshToken string) *Client {
 	return &Client{
+		baseURL:      defaultBaseURL,
 		refreshToken: &refreshToken,
 		httpClient:   http.DefaultClient,
 	}
 }
 
+func (c *Client) WithBaseURL(baseURL string) *Client {
+	c.baseURL = baseURL
+
+	return c
+}
+
 func (c *Client) createURL(methodName string) string {
-	return "https://slack.com/api/" + methodName
+	return c.baseURL + methodName
 }
 
 func (c *Client) createRequest(

@@ -18,8 +18,13 @@ import (
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
+	baseURL := os.Getenv("SLACK_BASE_URL")
 	appConfigurationToken := os.Getenv("SLACK_APP_CONFIGURATION_TOKEN")
 	refreshToken := os.Getenv("SLACK_REFRESH_TOKEN")
+
+	if !d.BaseURL.IsNull() {
+		baseURL = d.BaseURL.ValueString()
+	}
 
 	if !d.AppConfigurationToken.IsNull() {
 		appConfigurationToken = d.AppConfigurationToken.ValueString()
@@ -29,15 +34,22 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 		refreshToken = d.RefreshToken.ValueString()
 	}
 
-	if refreshToken != "" {
-		return slack.NewClientFromRefreshToken(refreshToken), nil
+	var client *slack.Client
+	if refreshToken == "" {
+		client = slack.NewClientFromRefreshToken(refreshToken)
+	} else {
+		if appConfigurationToken == "" {
+			return nil, errors.New("either app configuration token or refresh token must be provided")
+		}
+
+		client = slack.NewClient(appConfigurationToken)
 	}
 
-	if appConfigurationToken == "" {
-		return nil, errors.New("either app configuration token or refresh token must be provided")
+	if baseURL != "" {
+		client = client.WithBaseURL(baseURL)
 	}
 
-	return slack.NewClient(appConfigurationToken), nil
+	return client, nil
 }
 
 func configure(d Model) (*common.ProviderContext, error) {
