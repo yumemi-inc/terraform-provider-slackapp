@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
 )
 
 type Client struct {
@@ -33,20 +35,21 @@ func (c *Client) createURL(methodName string) string {
 
 func (c *Client) createRequest(
 	ctx context.Context,
-	httpMethod string, //nolint:unparam
+	httpMethod string,
 	methodName string,
-	request any,
+	requestBody io.Reader,
 ) (*http.Request, error) {
-	requestBody, err := json.Marshal(&request)
-	if err != nil {
-		return nil, err
+	if c.appConfigurationToken == nil {
+		if err := c.refreshAppConfigurationToken(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		httpMethod,
 		c.createURL(methodName),
-		bytes.NewBuffer(requestBody),
+		requestBody,
 	)
 	if err != nil {
 		return nil, err
@@ -57,4 +60,43 @@ func (c *Client) createRequest(
 	httpRequest.Header.Set("User-Agent", "yumemi-inc/terraform-provider-slackapp")
 
 	return httpRequest, nil
+}
+
+func (c *Client) createJSONRequest(
+	ctx context.Context,
+	httpMethod string, //nolint:unparam
+	methodName string,
+	request any,
+) (*http.Request, error) {
+	requestBody, err := json.Marshal(&request)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.createRequest(ctx, httpMethod, methodName, bytes.NewBuffer(requestBody))
+}
+
+func (c *Client) createFormRequest(
+	ctx context.Context,
+	httpMethod string, //nolint:unparam
+	methodName string,
+	request url.Values,
+) (*http.Request, error) {
+	return c.createRequest(ctx, httpMethod, methodName, bytes.NewBufferString(request.Encode()))
+}
+
+func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
+	if c.refreshToken == nil {
+		return nil
+	}
+
+	response, err := c.ToolingTokensRotate(ctx, *c.refreshToken)
+	if err != nil {
+		return err
+	}
+
+	*c.appConfigurationToken = response.Token
+	*c.refreshToken = response.RefreshToken
+
+	return nil
 }
