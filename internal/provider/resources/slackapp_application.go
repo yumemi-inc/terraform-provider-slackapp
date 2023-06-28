@@ -181,9 +181,10 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 }
 
 func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
-	var data SlackAppModel
+	var before, after SlackAppModel
 
-	response.Diagnostics.Append(request.State.Get(ctx, &data)...)
+	response.Diagnostics.Append(request.State.Get(ctx, &before)...)
+	response.Diagnostics.Append(request.Plan.Get(ctx, &after)...)
 
 	if response.Diagnostics.HasError() {
 		return
@@ -191,8 +192,8 @@ func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, r
 
 	_, err := r.ctx.SlackClient.AppsManifestUpdate(
 		ctx, slack.AppsManifestUpdateRequest{
-			AppID:    data.ID.ValueString(),
-			Manifest: data.Manifest.ValueString(),
+			AppID:    after.ID.ValueString(),
+			Manifest: after.Manifest.ValueString(),
 		},
 	)
 	if err != nil {
@@ -201,7 +202,10 @@ func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, r
 		return
 	}
 
-	response.Diagnostics.Append(response.State.Set(ctx, &data)...)
+	after.Credentials = before.Credentials
+	after.OauthAuthorizeURL = before.OauthAuthorizeURL
+
+	response.Diagnostics.Append(response.State.Set(ctx, &after)...)
 }
 
 func (r *SlackApp) Delete(ctx context.Context, request resource.DeleteRequest, response *resource.DeleteResponse) {
