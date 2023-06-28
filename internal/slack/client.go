@@ -95,8 +95,8 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 		return err
 	}
 
-	*c.appConfigurationToken = response.Token
-	*c.refreshToken = response.RefreshToken
+	c.appConfigurationToken = &response.Token
+	c.refreshToken = &response.RefreshToken
 
 	return nil
 }
