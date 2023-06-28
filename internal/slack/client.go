@@ -81,7 +81,14 @@ func (c *Client) createJSONRequest(
 		return nil, err
 	}
 
-	return c.createRequest(ctx, httpMethod, methodName, bytes.NewBuffer(requestBody))
+	httpRequest, err := c.createRequest(ctx, httpMethod, methodName, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, err
+	}
+
+	httpRequest.Header.Set("Content-Type", "application/json")
+
+	return httpRequest, nil
 }
 
 func (c *Client) createFormRequest(
@@ -90,7 +97,14 @@ func (c *Client) createFormRequest(
 	methodName string,
 	request url.Values,
 ) (*http.Request, error) {
-	return c.createRequest(ctx, httpMethod, methodName, bytes.NewBufferString(request.Encode()))
+	httpRequest, err := c.createRequest(ctx, httpMethod, methodName, bytes.NewBufferString(request.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return httpRequest, nil
 }
 
 func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
