@@ -36,13 +36,13 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 
 	var client *slack.Client
 	if refreshToken == "" {
-		client = slack.NewClientFromRefreshToken(refreshToken)
-	} else {
 		if appConfigurationToken == "" {
 			return nil, errors.New("either app configuration token or refresh token must be provided")
 		}
 
 		client = slack.NewClient(appConfigurationToken)
+	} else {
+		client = slack.NewClientFromRefreshToken(refreshToken)
 	}
 
 	if baseURL != "" {
