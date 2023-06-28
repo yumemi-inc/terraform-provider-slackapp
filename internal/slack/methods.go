@@ -72,7 +72,7 @@ func (c *Client) AppsManifestUpdate(
 		return nil, err
 	}
 
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.create", &request)
+	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.update", &request)
 	if err != nil {
 		return nil, err
 	}
