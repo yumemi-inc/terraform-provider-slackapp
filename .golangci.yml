@@ -1,0 +1,39 @@
+issues:
+  max-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable-all: true
+  enable:
+    - durationcheck
+    - errcheck
+    - exportloopref
+    - forcetypeassert
+    - gci
+    - godot
+    - gofmt
+    - gofumpt
+    - goimports
+    - gosimple
+    - ineffassign
+    - makezero
+    - misspell
+    - nilerr
+    - predeclared
+    - staticcheck
+    - tenv
+    - unconvert
+    - unparam
+    - unused
+    - vet
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/yumemi-inc/terraform-provider-slackapp)
+      - blank
+      - dot
+    skip-generated: true
+    custom-order: true

@@ -33,7 +33,7 @@ func (c *Client) createURL(methodName string) string {
 
 func (c *Client) createRequest(
 	ctx context.Context,
-	httpMethod string,
+	httpMethod string, //nolint:unparam
 	methodName string,
 	request any,
 ) (*http.Request, error) {
