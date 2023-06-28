@@ -15,44 +15,42 @@ import (
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
 
-type EventSubscription struct {
+type EventSubscriptions struct {
 	RequestURL types.String `tfsdk:"request_url"`
 	BotEvents  types.Set    `tfsdk:"bot_events"`
 	UserEvents types.Set    `tfsdk:"user_events"`
 }
 
-func (*EventSubscription) schema() *schema.ListNestedBlock {
-	return &schema.ListNestedBlock{
+func (*EventSubscriptions) schema() *schema.SingleNestedBlock {
+	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [Events API](https://api.slack.com/events-api) configuration for the app.",
-		NestedObject: schema.NestedBlockObject{
-			Attributes: map[string]schema.Attribute{
-				"request_url": &schema.StringAttribute{
-					MarkdownDescription: "A string containing the full `https` URL that acts as the [Events API request URL](https://api.slack.com/events-api#the-events-api__subscribing-to-event-types__events-api-request-urls). If set, you'll need to manually verify the Request URL in the App Manifest section of [App Management](https://app.slack.com/app-settings).",
-					Optional:            true,
+		Attributes: map[string]schema.Attribute{
+			"request_url": &schema.StringAttribute{
+				MarkdownDescription: "A string containing the full `https` URL that acts as the [Events API request URL](https://api.slack.com/events-api#the-events-api__subscribing-to-event-types__events-api-request-urls). If set, you'll need to manually verify the Request URL in the App Manifest section of [App Management](https://app.slack.com/app-settings).",
+				Optional:            true,
+			},
+			"bot_events": &schema.SetAttribute{
+				MarkdownDescription: "An array of strings matching the [event types](https://api.slack.com/events) you want to the app to subscribe to. A maximum of 100 event types can be used.",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Validators: []validator.Set{
+					setvalidator.SizeAtMost(100),
 				},
-				"bot_events": &schema.SetAttribute{
-					MarkdownDescription: "An array of strings matching the [event types](https://api.slack.com/events) you want to the app to subscribe to. A maximum of 100 event types can be used.",
-					ElementType:         types.StringType,
-					Optional:            true,
-					Validators: []validator.Set{
-						setvalidator.SizeAtMost(100),
-					},
-				},
-				"user_events": &schema.SetAttribute{
-					MarkdownDescription: "An array of strings matching the [event types](https://api.slack.com/events) you want to the app to subscribe to on behalf of authorized users. A maximum of 100 event types can be used.",
-					ElementType:         types.StringType,
-					Optional:            true,
-					Validators: []validator.Set{
-						setvalidator.SizeAtMost(100),
-					},
+			},
+			"user_events": &schema.SetAttribute{
+				MarkdownDescription: "An array of strings matching the [event types](https://api.slack.com/events) you want to the app to subscribe to on behalf of authorized users. A maximum of 100 event types can be used.",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Validators: []validator.Set{
+					setvalidator.SizeAtMost(100),
 				},
 			},
 		},
 	}
 }
 
-func (s EventSubscription) Read() manifest.EventSubscription {
-	return manifest.EventSubscription{
+func (s EventSubscriptions) Read() manifest.EventSubscriptions {
+	return manifest.EventSubscriptions{
 		RequestURL: s.RequestURL.ValueStringPointer(),
 		BotEvents:  typeconv.MustStringSetAsArray(&s.BotEvents),
 		UserEvents: typeconv.MustStringSetAsArray(&s.UserEvents),
@@ -100,7 +98,7 @@ func (i Interactivity) Read() manifest.Interactivity {
 
 type Settings struct {
 	// Blocks
-	EventSubscriptions []EventSubscription `tfsdk:"event_subscription"`
+	EventSubscriptions *EventSubscriptions `tfsdk:"event_subscription"`
 	Interactivity      *Interactivity      `tfsdk:"interactivity"`
 
 	// Arguments
@@ -113,7 +111,7 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A group of settings corresponding to the **Settings** section of the app config pages.",
 		Blocks: map[string]schema.Block{
-			"event_subscription": (*EventSubscription)(nil).schema(),
+			"event_subscription": (*EventSubscriptions)(nil).schema(),
 			"interactivity":      (*Interactivity)(nil).schema(),
 		},
 		Attributes: map[string]schema.Attribute{
@@ -145,7 +143,7 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 func (s Settings) Read() manifest.Settings {
 	return manifest.Settings{
 		AllowedIPAddressRanges: typeconv.MustStringSetAsArray(&s.AllowedIPAddressRanges),
-		EventSubscriptions:     typeconv.MapListModel[manifest.EventSubscription](s.EventSubscriptions),
+		EventSubscriptions:     typeconv.MapOptionModel[manifest.EventSubscriptions](s.EventSubscriptions),
 		Interactivity:          typeconv.MapOptionModel[manifest.Interactivity](s.Interactivity),
 		OrgDeployEnabled:       s.OrgDeployEnabled.ValueBoolPointer(),
 		SocketModeEnabled:      s.SocketModeEnabled.ValueBoolPointer(),

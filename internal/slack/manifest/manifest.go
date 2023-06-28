@@ -16,7 +16,7 @@ type DisplayInformation struct {
 	BackgroundColor *string `json:"background_color,omitempty"`
 }
 
-type EventSubscription struct {
+type EventSubscriptions struct {
 	RequestURL *string  `json:"request_url,omitempty"`
 	BotEvents  []string `json:"bot_events,omitempty"`
 	UserEvents []string `json:"user_events,omitempty"`
@@ -30,7 +30,7 @@ type Interactivity struct {
 
 type Settings struct {
 	AllowedIPAddressRanges []string            `json:"allowed_ip_address_ranges,omitempty"`
-	EventSubscriptions     []EventSubscription `json:"event_subscriptions,omitempty"`
+	EventSubscriptions     *EventSubscriptions `json:"event_subscriptions,omitempty"`
 	Interactivity          *Interactivity      `json:"interactivity,omitempty"`
 	OrgDeployEnabled       *bool               `json:"org_deploy_enabled,omitempty"`
 	SocketModeEnabled      *bool               `json:"socket_mode_enabled,omitempty"`
