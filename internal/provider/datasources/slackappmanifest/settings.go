@@ -98,7 +98,7 @@ func (i Interactivity) Read() manifest.Interactivity {
 
 type Settings struct {
 	// Blocks
-	EventSubscriptions *EventSubscriptions `tfsdk:"event_subscription"`
+	EventSubscriptions *EventSubscriptions `tfsdk:"event_subscriptions"`
 	Interactivity      *Interactivity      `tfsdk:"interactivity"`
 
 	// Arguments
@@ -111,8 +111,8 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A group of settings corresponding to the **Settings** section of the app config pages.",
 		Blocks: map[string]schema.Block{
-			"event_subscription": (*EventSubscriptions)(nil).schema(),
-			"interactivity":      (*Interactivity)(nil).schema(),
+			"event_subscriptions": (*EventSubscriptions)(nil).schema(),
+			"interactivity":       (*Interactivity)(nil).schema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"allowed_ip_address_ranges": &schema.SetAttribute{
