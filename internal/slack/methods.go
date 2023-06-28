@@ -171,7 +171,7 @@ func (c *Client) ToolingTokensRotate(
 	values := url.Values{}
 	values.Set("refresh_token", refreshToken)
 
-	httpRequest, err := c.createFormRequest(ctx, http.MethodPost, "apps.manifest.delete", values)
+	httpRequest, err := c.createFormRequest(ctx, http.MethodPost, "tooling.tokens.rotate", values)
 	if err != nil {
 		return nil, err
 	}
