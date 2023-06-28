@@ -10,9 +10,9 @@ import (
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/provider"
 )
 
-var (
-	version string = "dev"
-)
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+
+var version string = "dev"
 
 func main() {
 	var debug bool
@@ -26,7 +26,6 @@ func main() {
 	}
 
 	err := providerserver.Serve(context.Background(), provider.New(version), opts)
-
 	if err != nil {
 		log.Fatal(err.Error())
 	}
