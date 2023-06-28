@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const defaultBaseURL = "https://slack.com/api/"
@@ -64,7 +67,6 @@ func (c *Client) createRequest(
 		httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
 	}
 
-	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("User-Agent", "yumemi-inc/terraform-provider-slackapp")
 
 	return httpRequest, nil
@@ -117,6 +119,8 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 		return err
 	}
 
+	tflog.Debug(ctx, fmt.Sprintf("%+v", response))
+
 	c.appConfigurationToken = &response.Token
 	c.refreshToken = &response.RefreshToken
 
@@ -125,10 +129,16 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 
 func (c *Client) ensureAppConfigurationToken(ctx context.Context) error {
 	if c.appConfigurationToken == nil {
+		tflog.Debug(ctx, "No app configuration token is available, refreshing token.")
+
 		if err := c.refreshAppConfigurationToken(ctx); err != nil {
 			return err
 		}
+
+		return nil
 	}
+
+	tflog.Debug(ctx, "App configuration token is already provided, continuing.")
 
 	return nil
 }

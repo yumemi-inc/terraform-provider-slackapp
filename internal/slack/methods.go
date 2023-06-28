@@ -46,7 +46,7 @@ func (c *Client) AppsManifestCreate(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestCreateResponse](httpResponse)
+	return readJSONResponse[AppsManifestCreateResponse](ctx, httpResponse)
 }
 
 type AppsManifestUpdateRequest struct {
@@ -82,7 +82,7 @@ func (c *Client) AppsManifestUpdate(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestUpdateResponse](httpResponse)
+	return readJSONResponse[AppsManifestUpdateResponse](ctx, httpResponse)
 }
 
 type AppsManifestExportRequest struct {
@@ -116,7 +116,7 @@ func (c *Client) AppsManifestExport(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestExportResponse](httpResponse)
+	return readJSONResponse[AppsManifestExportResponse](ctx, httpResponse)
 }
 
 type AppsManifestDeleteRequest struct {
@@ -149,7 +149,7 @@ func (c *Client) AppsManifestDelete(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestDeleteResponse](httpResponse)
+	return readJSONResponse[AppsManifestDeleteResponse](ctx, httpResponse)
 }
 
 type ToolingTokensRotateResponse struct {
@@ -181,5 +181,5 @@ func (c *Client) ToolingTokensRotate(
 		return nil, err
 	}
 
-	return readJSONResponse[ToolingTokensRotateResponse](httpResponse)
+	return readJSONResponse[ToolingTokensRotateResponse](ctx, httpResponse)
 }

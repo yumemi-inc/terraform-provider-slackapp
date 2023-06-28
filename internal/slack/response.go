@@ -1,16 +1,20 @@
 package slack
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type Response interface {
 	IsOk() bool
 }
 
-func readJSONResponse[T Response](httpResponse *http.Response) (*T, error) {
+func readJSONResponse[T Response](ctx context.Context, httpResponse *http.Response) (*T, error) {
 	responseBody, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, err
@@ -27,8 +31,12 @@ func readJSONResponse[T Response](httpResponse *http.Response) (*T, error) {
 			return nil, err
 		}
 
+		tflog.Debug(ctx, fmt.Sprintf("Read JSON error response: %+v", errorResponse))
+
 		return nil, &errorResponse
 	}
+
+	tflog.Debug(ctx, fmt.Sprintf("Read JSON response: %+v", response))
 
 	return &response, nil
 }
