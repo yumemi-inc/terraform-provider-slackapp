@@ -14,7 +14,7 @@ terraform {
   required_providers {
     slackapp = {
       source  = "yumemi-inc/slackapp"
-      version = "~> 0.1.1"
+      version = "~> 0.2"
     }
   }
 }
