@@ -32,6 +32,10 @@ func (c *Client) AppsManifestCreate(
 	ctx context.Context,
 	request AppsManifestCreateRequest,
 ) (*AppsManifestCreateResponse, error) {
+	if err := c.ensureAppConfigurationToken(ctx); err != nil {
+		return nil, err
+	}
+
 	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.create", &request)
 	if err != nil {
 		return nil, err
@@ -64,6 +68,10 @@ func (c *Client) AppsManifestUpdate(
 	ctx context.Context,
 	request AppsManifestUpdateRequest,
 ) (*AppsManifestUpdateResponse, error) {
+	if err := c.ensureAppConfigurationToken(ctx); err != nil {
+		return nil, err
+	}
+
 	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.create", &request)
 	if err != nil {
 		return nil, err
@@ -94,6 +102,10 @@ func (c *Client) AppsManifestExport(
 	ctx context.Context,
 	request AppsManifestExportRequest,
 ) (*AppsManifestExportResponse, error) {
+	if err := c.ensureAppConfigurationToken(ctx); err != nil {
+		return nil, err
+	}
+
 	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.export", &request)
 	if err != nil {
 		return nil, err
@@ -123,6 +135,10 @@ func (c *Client) AppsManifestDelete(
 	ctx context.Context,
 	request AppsManifestDeleteRequest,
 ) (*AppsManifestDeleteResponse, error) {
+	if err := c.ensureAppConfigurationToken(ctx); err != nil {
+		return nil, err
+	}
+
 	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.delete", &request)
 	if err != nil {
 		return nil, err

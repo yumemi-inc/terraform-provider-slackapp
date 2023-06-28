@@ -50,12 +50,6 @@ func (c *Client) createRequest(
 	methodName string,
 	requestBody io.Reader,
 ) (*http.Request, error) {
-	if c.appConfigurationToken == nil {
-		if err := c.refreshAppConfigurationToken(ctx); err != nil {
-			return nil, err
-		}
-	}
-
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		httpMethod,
@@ -66,7 +60,10 @@ func (c *Client) createRequest(
 		return nil, err
 	}
 
-	httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
+	if c.appConfigurationToken != nil {
+		httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
+	}
+
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("User-Agent", "yumemi-inc/terraform-provider-slackapp")
 
@@ -108,6 +105,16 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 
 	c.appConfigurationToken = &response.Token
 	c.refreshToken = &response.RefreshToken
+
+	return nil
+}
+
+func (c *Client) ensureAppConfigurationToken(ctx context.Context) error {
+	if c.appConfigurationToken == nil {
+		if err := c.refreshAppConfigurationToken(ctx); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
