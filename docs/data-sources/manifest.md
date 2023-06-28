@@ -141,13 +141,13 @@ Optional:
 Optional:
 
 - `allowed_ip_address_ranges` (Set of String) An array of strings that contain IP addresses that conform to the [Allowed IP Ranges feature](https://api.slack.com/authentication/best-practices#ip_allowlisting).
-- `event_subscription` (Block List) A subgroup of settings that describe [Events API](https://api.slack.com/events-api) configuration for the app. (see [below for nested schema](#nestedblock--settings--event_subscription))
+- `event_subscriptions` (Block, Optional) A subgroup of settings that describe [Events API](https://api.slack.com/events-api) configuration for the app. (see [below for nested schema](#nestedblock--settings--event_subscriptions))
 - `interactivity` (Block, Optional) A subgroup of settings that describe [interactivity](https://api.slack.com/interactivity) configuration for the app. (see [below for nested schema](#nestedblock--settings--interactivity))
 - `org_deploy_enabled` (Boolean) A boolean that specifies whether or not [org-wide deploy](https://api.slack.com/enterprise/apps) is enabled.
 - `socket_mode_enabled` (Boolean) A boolean that specifies whether or not [Socket Mode](https://api.slack.com/apis/connections/socket) is enabled.
 
-<a id="nestedblock--settings--event_subscription"></a>
-### Nested Schema for `settings.event_subscription`
+<a id="nestedblock--settings--event_subscriptions"></a>
+### Nested Schema for `settings.event_subscriptions`
 
 Optional:
 
