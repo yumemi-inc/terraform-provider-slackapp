@@ -14,7 +14,7 @@ terraform {
   required_providers {
     slackapp = {
       source  = "yumemi-inc/slackapp"
-      version = "~> 0.2"
+      version = "~> 0.2.4"
     }
   }
 }
@@ -41,6 +41,7 @@ data "slackapp_manifest" "default" {
   settings {
     org_deploy_enabled  = false
     socket_mode_enabled = false
+    token_rotation_enabled = false
   }
 }
 
