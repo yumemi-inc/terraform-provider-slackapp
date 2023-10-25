@@ -34,6 +34,7 @@ type Settings struct {
 	Interactivity          *Interactivity      `json:"interactivity,omitempty"`
 	OrgDeployEnabled       *bool               `json:"org_deploy_enabled,omitempty"`
 	SocketModeEnabled      *bool               `json:"socket_mode_enabled,omitempty"`
+	TokenRotationEnabled   *bool               `json:"token_rotation_enabled,omitempty"`
 }
 
 type AppHome struct {

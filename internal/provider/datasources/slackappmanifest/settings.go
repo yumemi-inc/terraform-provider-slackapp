@@ -105,6 +105,7 @@ type Settings struct {
 	AllowedIPAddressRanges types.Set  `tfsdk:"allowed_ip_address_ranges"`
 	OrgDeployEnabled       types.Bool `tfsdk:"org_deploy_enabled"`
 	SocketModeEnabled      types.Bool `tfsdk:"socket_mode_enabled"`
+	TokenRotationEnabled   types.Bool `tfsdk:"token_rotation_enabled"`
 }
 
 func (*Settings) Schema() *schema.SingleNestedBlock {
@@ -136,6 +137,10 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 				MarkdownDescription: "A boolean that specifies whether or not [Socket Mode](https://api.slack.com/apis/connections/socket) is enabled.",
 				Optional:            true,
 			},
+			"token_rotation_enabled": &schema.BoolAttribute{
+				MarkdownDescription: "A boolean that specifies whether or not [token rotation](https://api.slack.com/authentication/rotation) is enabled.",
+				Optional:            true,
+			},
 		},
 	}
 }
@@ -147,5 +152,6 @@ func (s Settings) Read() manifest.Settings {
 		Interactivity:          typeconv.MapOptionModel[manifest.Interactivity](s.Interactivity),
 		OrgDeployEnabled:       s.OrgDeployEnabled.ValueBoolPointer(),
 		SocketModeEnabled:      s.SocketModeEnabled.ValueBoolPointer(),
+		TokenRotationEnabled:   s.TokenRotationEnabled.ValueBoolPointer(),
 	}
 }
