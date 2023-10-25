@@ -16,6 +16,7 @@ import (
 
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack"
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 type SlackAppModel struct {
@@ -166,6 +167,23 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 		r.handleSlackErrorInDiag(&response.Diagnostics, err)
 
 		return
+	}
+
+	var newManifest manifest.App
+	if err := json.Unmarshal([]byte(data.Manifest.ValueString()), &newManifest); err != nil {
+		response.Diagnostics.AddAttributeError(
+			path.Root("manifest"),
+			"Manifest must be a valid JSON.",
+			err.Error(),
+		)
+
+		return
+	}
+
+	// Slack API trims _metadata from the manifest on applying.
+	// To ignore the diff, replaces the _metadata object in the current manifest by the specified one.
+	if apiResponse.Manifest.Metadata == nil {
+		apiResponse.Manifest.Metadata = newManifest.Metadata
 	}
 
 	manifestJSON, err := json.Marshal(apiResponse.Manifest)

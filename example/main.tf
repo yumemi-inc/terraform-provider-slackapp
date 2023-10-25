@@ -14,6 +14,11 @@ data "slackapp_manifest" "default" {
     name = "Example Slack App"
   }
 
+  metadata {
+    major_version = 1
+    minor_version = 1
+  }
+
   settings {
     org_deploy_enabled  = false
     socket_mode_enabled = false
