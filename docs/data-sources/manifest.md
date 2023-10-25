@@ -145,6 +145,7 @@ Optional:
 - `interactivity` (Block, Optional) A subgroup of settings that describe [interactivity](https://api.slack.com/interactivity) configuration for the app. (see [below for nested schema](#nestedblock--settings--interactivity))
 - `org_deploy_enabled` (Boolean) A boolean that specifies whether or not [org-wide deploy](https://api.slack.com/enterprise/apps) is enabled.
 - `socket_mode_enabled` (Boolean) A boolean that specifies whether or not [Socket Mode](https://api.slack.com/apis/connections/socket) is enabled.
+- `token_rotation_enabled` (Boolean) A boolean that specifies whether or not [token rotation](https://api.slack.com/authentication/rotation) is enabled.
 
 <a id="nestedblock--settings--event_subscriptions"></a>
 ### Nested Schema for `settings.event_subscriptions`
