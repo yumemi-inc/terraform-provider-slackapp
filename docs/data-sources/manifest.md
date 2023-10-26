@@ -69,7 +69,7 @@ Optional:
 Optional:
 
 - `always_online` (Boolean) A boolean that specifies whether or not the bot user will always appear to be online.
-- `display_name` (String) A string containing the display name of the bot user. Maximum length is 80 characters. Allowed characters: `a-z`, `0-9`, `-`, `_`, and `.`.
+- `display_name` (String) A string containing the display name of the bot user. Maximum length is 80 characters. Allowed characters: `a-z`, `A-Z`, `0-9`, `-`, `_`, and `.`.
 
 
 <a id="nestedblock--features--shortcut"></a>
