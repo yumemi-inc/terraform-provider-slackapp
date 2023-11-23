@@ -24,7 +24,7 @@ provider "slackapp" {
   // It also can be set via SLACK_BASE_URL environment variable.
   base_url = "https://slack.com/api/"
   
-  // App configuration token and refresh token can be retrieved from https://api.slack.com/authentication/config-tokens.
+  // App configuration token and refresh token can be retrieved from https://api.slack.com/reference/manifests#config-tokens.
   // They are special tokens to manage apps in workspace global.
   // They also can be set via SLACK_APP_CONFIGURATION_TOKEN and SLACK_REFRESH_TOKEN environment variables.
   app_configuration_token = "<YOUR_APP_CONFIGURATION_TOKEN>"
