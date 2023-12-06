@@ -1,7 +1,6 @@
 package slackappmanifest
 
 import (
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/myvalidator"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -12,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/myvalidator"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
