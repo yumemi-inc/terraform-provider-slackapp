@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/extensions/validatordiag"
 )
 
