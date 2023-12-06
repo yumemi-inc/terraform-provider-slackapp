@@ -1,6 +1,7 @@
 package slackappmanifest
 
 import (
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/myvalidator"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -11,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/listvalidatorx"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
@@ -130,7 +130,7 @@ func (*Shortcut) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidatorx.SizeAtMostWarning(5, listvalidatorx.WithHint("Exceeding Slack's official limit of 5 entries for shortcuts may work now, but could be restricted in future updates.")),
+			myvalidator.MessageShortcutCount(),
 		},
 	}
 }
@@ -190,7 +190,7 @@ func (*SlashCommand) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidatorx.SizeAtMostWarning(5, listvalidatorx.WithHint("Exceeding Slack's official limit of 5 entries for slash commands may work now, but could be restricted in future updates.")),
+			myvalidator.CommandCount(),
 		},
 	}
 }
