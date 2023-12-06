@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 )
 
-// DiscouragedBlockDiagnostic returns an warning Diagnostic to be used when a block is discouraged
+// DiscouragedBlockDiagnostic returns a warning Diagnostic to be used when a block is discouraged
 func DiscouragedBlockDiagnostic(path path.Path, description string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
@@ -18,7 +18,7 @@ func DiscouragedBlockDiagnostic(path path.Path, description string) diag.Diagnos
 	)
 }
 
-// DiscouragedAttributeValueDiagnostic returns an warning Diagnostic to be used when an attribute has a discouraged value.
+// DiscouragedAttributeValueDiagnostic returns a warning Diagnostic to be used when an attribute has a discouraged value.
 func DiscouragedAttributeValueDiagnostic(path path.Path, description string, value string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
@@ -27,7 +27,7 @@ func DiscouragedAttributeValueDiagnostic(path path.Path, description string, val
 	)
 }
 
-// DiscouragedAttributeValueLengthDiagnostic returns an warning Diagnostic to be used when an attribute's value has a discouraged length.
+// DiscouragedAttributeValueLengthDiagnostic returns a warning Diagnostic to be used when an attribute's value has a discouraged length.
 func DiscouragedAttributeValueLengthDiagnostic(path path.Path, description string, value string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
@@ -36,7 +36,7 @@ func DiscouragedAttributeValueLengthDiagnostic(path path.Path, description strin
 	)
 }
 
-// DiscouragedAttributeValueMatchDiagnostic returns an warning Diagnostic to be used when an attribute's value has a discouraged match.
+// DiscouragedAttributeValueMatchDiagnostic returns a warning Diagnostic to be used when an attribute's value has a discouraged match.
 func DiscouragedAttributeValueMatchDiagnostic(path path.Path, description string, value string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
@@ -45,7 +45,7 @@ func DiscouragedAttributeValueMatchDiagnostic(path path.Path, description string
 	)
 }
 
-// DiscouragedAttributeCombinationDiagnostic returns an warning Diagnostic to be used when a schemavalidator of attributes is discouraged.
+// DiscouragedAttributeCombinationDiagnostic returns a warning Diagnostic to be used when a schemavalidator of attributes is discouraged.
 func DiscouragedAttributeCombinationDiagnostic(path path.Path, description string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
@@ -54,7 +54,7 @@ func DiscouragedAttributeCombinationDiagnostic(path path.Path, description strin
 	)
 }
 
-// DiscouragedAttributeTypeDiagnostic returns an warning Diagnostic to be used when an attribute has a discouraged type.
+// DiscouragedAttributeTypeDiagnostic returns a warning Diagnostic to be used when an attribute has a discouraged type.
 func DiscouragedAttributeTypeDiagnostic(path path.Path, description string, value string) diag.Diagnostic {
 	return diag.NewAttributeWarningDiagnostic(
 		path,
