@@ -1,4 +1,4 @@
-package listvalidator
+package listvalidatorx
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/extensions/validatordiag"
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/validatordiagx"
 )
 
 var _ validator.List = sizeAtMostWarningValidator{}
@@ -35,7 +35,7 @@ func (v sizeAtMostWarningValidator) ValidateList(ctx context.Context, req valida
 	elems := req.ConfigValue.Elements()
 
 	if len(elems) > v.max {
-		resp.Diagnostics.Append(validatordiag.DiscouragedAttributeValueDiagnostic(
+		resp.Diagnostics.Append(validatordiagx.DiscouragedAttributeValueDiagnostic(
 			req.Path,
 			v.Description(ctx),
 			fmt.Sprintf("%d", len(elems)),
