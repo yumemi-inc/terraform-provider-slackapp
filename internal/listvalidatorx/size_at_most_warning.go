@@ -19,7 +19,7 @@ type sizeAtMostWarningValidator struct {
 
 // Description describes the validation in plain text formatting.
 func (v sizeAtMostWarningValidator) Description(_ context.Context) string {
-	return fmt.Sprintf("list should contain at most %d elements\n\nHint: %s", v.max, v.hint)
+	return appendHint(fmt.Sprintf("list should contain at most %d elements", v.max), v.hint)
 }
 
 // MarkdownDescription describes the validation in Markdown formatting.
