@@ -1,6 +1,7 @@
 package slackappmanifest
 
 import (
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/myvalidator"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -129,7 +130,7 @@ func (*Shortcut) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidator.SizeAtMost(5),
+			myvalidator.MessageShortcutCount(),
 		},
 	}
 }
@@ -189,7 +190,7 @@ func (*SlashCommand) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidator.SizeAtMost(5),
+			myvalidator.CommandCount(),
 		},
 	}
 }
