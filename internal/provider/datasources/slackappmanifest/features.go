@@ -130,7 +130,7 @@ func (*Shortcut) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidatorx.SizeAtMostWarning(5),
+			listvalidatorx.SizeAtMostWarning(5, listvalidatorx.WithHint("Exceeding Slack's official limit of 5 entries for shortcuts may work now, but could be restricted in future updates.")),
 		},
 	}
 }
@@ -190,7 +190,7 @@ func (*SlashCommand) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			listvalidatorx.SizeAtMostWarning(5),
+			listvalidatorx.SizeAtMostWarning(5, listvalidatorx.WithHint("Exceeding Slack's official limit of 5 entries for slash commands may work now, but could be restricted in future updates.")),
 		},
 	}
 }
