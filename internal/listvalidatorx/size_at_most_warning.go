@@ -13,12 +13,13 @@ var _ validator.List = sizeAtMostWarningValidator{}
 
 // sizeAtMostWarningValidator validates that list contains at most max elements.
 type sizeAtMostWarningValidator struct {
-	max int
+	max  int
+	hint string
 }
 
 // Description describes the validation in plain text formatting.
 func (v sizeAtMostWarningValidator) Description(_ context.Context) string {
-	return fmt.Sprintf("list should contain at most %d elements", v.max)
+	return fmt.Sprintf("list should contain at most %d elements\n\nHint: %s", v.max, v.hint)
 }
 
 // MarkdownDescription describes the validation in Markdown formatting.
@@ -50,8 +51,9 @@ func (v sizeAtMostWarningValidator) ValidateList(ctx context.Context, req valida
 //   - Contains at most max elements.
 //
 // Null (unconfigured) and unknown (known after apply) values are skipped.
-func SizeAtMostWarning(max int) validator.List {
+func SizeAtMostWarning(max int, opts ...Option) validator.List {
 	return sizeAtMostWarningValidator{
-		max: max,
+		max:  max,
+		hint: optionsFromArgs(opts...).hint,
 	}
 }
