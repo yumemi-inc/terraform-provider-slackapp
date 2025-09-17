@@ -1,14 +1,13 @@
 package slack
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net/http"
-    "os"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 
-    "github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type Response interface {
@@ -20,11 +19,6 @@ func readJSONResponse[T Response](ctx context.Context, httpResponse *http.Respon
 	if err != nil {
 		return nil, err
 	}
-
-    // Optional: log raw JSON response for debugging provider API interactions
-    if os.Getenv("SLACKAPP_DEBUG_RAW_JSON") == "1" {
-        tflog.Debug(ctx, string(responseBody))
-    }
 
 	var response T
 	if err := json.Unmarshal(responseBody, &response); err != nil {
