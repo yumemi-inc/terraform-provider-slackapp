@@ -178,7 +178,9 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 	// When importing, the local state may not have a manifest yet. Only parse/copy metadata
 	// if a non-empty manifest exists in state to avoid JSON parse errors on empty strings.
 	hasLocalManifest := !data.Manifest.IsNull() && !data.Manifest.IsUnknown() && strings.TrimSpace(data.Manifest.ValueString()) != ""
-	if hasLocalManifest {
+	// Slack API trims _metadata from the manifest on applying.
+	// To avoid unnecessary parsing and ignore diffs, only unmarshal when replacement is needed.
+	if hasLocalManifest && apiResponse.Manifest.Metadata == nil {
 		var newManifest manifest.App
 		if err := json.Unmarshal([]byte(data.Manifest.ValueString()), &newManifest); err != nil {
 			response.Diagnostics.AddAttributeError(
@@ -190,11 +192,7 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 			return
 		}
 
-		// Slack API trims _metadata from the manifest on applying.
-		// To ignore the diff, replace the _metadata object in the current manifest by the specified one.
-		if apiResponse.Manifest.Metadata == nil {
-			apiResponse.Manifest.Metadata = newManifest.Metadata
-		}
+		apiResponse.Manifest.Metadata = newManifest.Metadata
 	}
 
 	manifestJSON, err := json.Marshal(apiResponse.Manifest)
