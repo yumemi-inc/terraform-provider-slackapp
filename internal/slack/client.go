@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -119,7 +118,9 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 		return err
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("%+v", response))
+	// Do not log the response: it contains the rotated app configuration token
+	// and refresh token in cleartext.
+	tflog.Debug(ctx, "Refreshed app configuration token.")
 
 	c.appConfigurationToken = &response.Token
 	c.refreshToken = &response.RefreshToken

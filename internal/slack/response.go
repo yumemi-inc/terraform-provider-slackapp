@@ -36,7 +36,10 @@ func readJSONResponse[T Response](ctx context.Context, httpResponse *http.Respon
 		return nil, &errorResponse
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Read JSON response: %+v", response))
+	// Do not log the response body: some responses (e.g. apps.manifest.create,
+	// tooling.tokens.rotate) contain secrets such as client_secret, signing_secret,
+	// and tokens. tflog does not honor the schema "Sensitive" flag.
+	tflog.Debug(ctx, "Read JSON response successfully.")
 
 	return &response, nil
 }
