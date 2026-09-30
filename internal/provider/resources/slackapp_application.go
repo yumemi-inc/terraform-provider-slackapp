@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifesttype"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/planmods"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
@@ -22,7 +23,7 @@ import (
 
 type SlackAppModel struct {
 	// Arguments
-	Manifest types.String `tfsdk:"manifest"`
+	Manifest manifesttype.Manifest `tfsdk:"manifest"`
 
 	// Attributes
 	ID                types.String `tfsdk:"id"`
@@ -53,6 +54,7 @@ func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response 
 			"manifest": &schema.StringAttribute{
 				MarkdownDescription: "A JSON app manifest encoded as a string. This manifest must use a valid [app manifest schema - read our guide to creating one](https://api.slack.com/reference/manifests#fields).",
 				Required:            true,
+				CustomType:          manifesttype.ManifestType{},
 			},
 
 			// Attributes
@@ -202,7 +204,7 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 		return
 	}
 
-	data.Manifest = types.StringValue(string(manifestJSON))
+	data.Manifest = manifesttype.NewManifestValue(string(manifestJSON))
 
 	response.Diagnostics.Append(response.State.Set(ctx, &data)...)
 }
