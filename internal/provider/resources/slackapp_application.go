@@ -55,6 +55,9 @@ func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response 
 				MarkdownDescription: "A JSON app manifest encoded as a string. This manifest must use a valid [app manifest schema - read our guide to creating one](https://api.slack.com/reference/manifests#fields).",
 				Required:            true,
 				CustomType:          manifesttype.ManifestType{},
+				PlanModifiers: []planmodifier.String{
+					manifesttype.SuppressEquivalentManifest(),
+				},
 			},
 
 			// Attributes
