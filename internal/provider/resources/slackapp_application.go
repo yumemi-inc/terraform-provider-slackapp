@@ -10,12 +10,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
+	"github.com/yumemi-inc/terraform-provider-slackapp/internal/planmods"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack"
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
 )
@@ -74,14 +74,14 @@ func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response 
 					"signing_secret":     types.StringType,
 				},
 				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+					planmods.KeepPriorObject(),
 				},
 			},
 			"oauth_authorize_url": &schema.StringAttribute{
 				MarkdownDescription: "URL of the OAuth 2 authorization endpoint.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					planmods.KeepPriorString(),
 				},
 			},
 		},
