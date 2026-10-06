@@ -56,6 +56,39 @@ func TestStringSemanticEquals(t *testing.T) {
 			next:  `{"display_information":{"name":"A","description":"new"}}`,
 			want:  false,
 		},
+		"unmodeled field added is a real change": {
+			// outgoing_domains is not in internal/slack/manifest. Decoding into
+			// that struct would drop it from both sides.
+			prior: `{"display_information":{"name":"A"}}`,
+			next:  `{"display_information":{"name":"A"},"outgoing_domains":["a.example.com"]}`,
+			want:  false,
+		},
+		"unmodeled field changed is a real change": {
+			prior: `{"display_information":{"name":"A"},"functions":{"f":{"title":"Old"}}}`,
+			next:  `{"display_information":{"name":"A"},"functions":{"f":{"title":"New"}}}`,
+			want:  false,
+		},
+		"unmodeled nested field changed is a real change": {
+			prior: `{"display_information":{"name":"A"},"features":{"assistant_view":{"assistant_description":"old"}}}`,
+			next:  `{"display_information":{"name":"A"},"features":{"assistant_view":{"assistant_description":"new"}}}`,
+			want:  false,
+		},
+		"unmodeled field with keys reordered is equal": {
+			prior: `{"display_information":{"name":"A"},"functions":{"f":{"title":"T","description":"D"}}}`,
+			next:  `{"functions":{"f":{"description":"D","title":"T"}},"display_information":{"name":"A"}}`,
+			want:  true,
+		},
+		"unmodeled array order is significant": {
+			// Only the arrays Slack treats as sets are sorted.
+			prior: `{"display_information":{"name":"A"},"outgoing_domains":["a.example.com","b.example.com"]}`,
+			next:  `{"display_information":{"name":"A"},"outgoing_domains":["b.example.com","a.example.com"]}`,
+			want:  false,
+		},
+		"number precision is kept": {
+			prior: `{"_metadata":{"major_version":1,"minor_version":1},"display_information":{"name":"A"}}`,
+			next:  `{"_metadata":{"major_version":1,"minor_version":2},"display_information":{"name":"A"}}`,
+			want:  false,
+		},
 		"slash_command order is significant": {
 			// slash_commands is an ordered list, not a set: reordering is a change.
 			prior: `{"display_information":{"name":"A"},"features":{"slash_commands":[{"command":"/a","description":"a"},{"command":"/b","description":"b"}]}}`,

@@ -11,10 +11,11 @@
 // perpetual, un-fixable plan drift.
 //
 // ManifestType fixes this at the type level: two manifests are equal when they
-// decode to the same manifest.App after the set-valued scope/event/domain arrays
+// decode to the same JSON value after the set-valued scope/event/domain arrays
 // (which Slack treats as unordered sets) are sorted. Object key order and
 // insignificant whitespace fall out for free because comparison happens on the
-// decoded structure, not the string.
+// decoded value, not the string. Every field takes part, including the ones
+// internal/slack/manifest does not model.
 package manifesttype
 
 import (
@@ -23,13 +24,12 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 // ManifestType is the attr.Type for a Slack app manifest string.
@@ -141,55 +141,95 @@ func (v Manifest) StringSemanticEquals(
 	return equal, diags
 }
 
-// manifestsEqual decodes both manifest strings, canonicalizes their set-valued
-// fields, and reports structural equality.
+// manifestsEqual decodes both manifest strings as generic JSON, sorts the
+// arrays Slack treats as sets, and reports whether the results are equal.
+//
+// It decodes into generic values rather than manifest.App on purpose: that
+// struct models only part of the manifest, and decoding into it would drop
+// every other field (functions, workflows, outgoing_domains, ...) from both
+// sides, so a change to only those fields would compare equal and never
+// reach Slack.
 func manifestsEqual(a, b string) (bool, error) {
-	appA, err := parseAndCanonicalize(a)
+	valueA, err := canonicalManifest(a)
 	if err != nil {
 		return false, err
 	}
 
-	appB, err := parseAndCanonicalize(b)
+	valueB, err := canonicalManifest(b)
 	if err != nil {
 		return false, err
 	}
 
-	return reflect.DeepEqual(appA, appB), nil
+	return reflect.DeepEqual(valueA, valueB), nil
 }
 
-func parseAndCanonicalize(s string) (*manifest.App, error) {
-	var app manifest.App
-	if err := json.Unmarshal([]byte(s), &app); err != nil {
+// manifestSetPaths are the manifest arrays whose order means nothing to Slack: it
+// exports them in its own order. Every other array, such as shortcuts or
+// slash_commands, keeps its order in the comparison.
+var manifestSetPaths = [][]string{
+	{"oauth_config", "redirect_urls"},
+	{"oauth_config", "scopes", "bot"},
+	{"oauth_config", "scopes", "user"},
+	{"settings", "allowed_ip_address_ranges"},
+	{"settings", "event_subscriptions", "bot_events"},
+	{"settings", "event_subscriptions", "user_events"},
+	{"features", "unfurl_domains"},
+}
+
+// canonicalManifest decodes a manifest and sorts the arrays at manifestSetPaths.
+// Numbers stay json.Number, so that no precision is lost in the comparison.
+func canonicalManifest(s string) (any, error) {
+	decoder := json.NewDecoder(strings.NewReader(s))
+	decoder.UseNumber()
+
+	var value any
+	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
 
-	canonicalize(&app)
+	if decoder.More() {
+		return nil, fmt.Errorf("unexpected data after the manifest")
+	}
 
-	return &app, nil
+	root, ok := value.(map[string]any)
+	if !ok {
+		return value, nil
+	}
+
+	for _, p := range manifestSetPaths {
+		sortManifestSet(root, p)
+	}
+
+	return root, nil
 }
 
-// canonicalize sorts every manifest field that the slackapp_manifest data source
-// models as a set (types.Set), so equal sets compare equal regardless of the
-// order Slack or Terraform happens to serialize them in. Ordered lists
-// (shortcuts, slash_commands, workflow_steps) are intentionally left untouched.
-func canonicalize(app *manifest.App) {
-	if app.OauthConfig != nil {
-		sort.Strings(app.OauthConfig.RedirectURLs)
-		if app.OauthConfig.Scopes != nil {
-			sort.Strings(app.OauthConfig.Scopes.Bot)
-			sort.Strings(app.OauthConfig.Scopes.User)
+// sortManifestSet sorts the array at path in place, when one is there. Elements are
+// ordered by their JSON encoding, so that an array of anything sorts.
+func sortManifestSet(root map[string]any, path []string) {
+	parent := root
+	for _, key := range path[:len(path)-1] {
+		next, ok := parent[key].(map[string]any)
+		if !ok {
+			return
 		}
+		parent = next
 	}
 
-	if app.Settings != nil {
-		sort.Strings(app.Settings.AllowedIPAddressRanges)
-		if app.Settings.EventSubscriptions != nil {
-			sort.Strings(app.Settings.EventSubscriptions.BotEvents)
-			sort.Strings(app.Settings.EventSubscriptions.UserEvents)
-		}
+	values, ok := parent[path[len(path)-1]].([]any)
+	if !ok {
+		return
 	}
 
-	if app.Features != nil {
-		sort.Strings(app.Features.UnfurlDomains)
+	sort.SliceStable(values, func(i, j int) bool {
+		return manifestSetElementKey(values[i]) < manifestSetElementKey(values[j])
+	})
+}
+
+func manifestSetElementKey(v any) string {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
 	}
+
+	return string(encoded)
 }

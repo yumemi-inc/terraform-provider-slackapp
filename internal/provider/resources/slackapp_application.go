@@ -18,7 +18,6 @@ import (
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifesttype"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/planmods"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 type SlackAppModel struct {
@@ -175,19 +174,24 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 		return
 	}
 
-	if apiResponse.Manifest == nil {
+	if len(apiResponse.Manifest) == 0 || string(apiResponse.Manifest) == "null" {
 		response.Diagnostics.AddError("Slack API returned empty manifest.", "apps.manifest.export returned ok but no manifest payload")
 		return
 	}
 
-	// When importing, the local state may not have a manifest yet. Only parse/copy metadata
-	// if a non-empty manifest exists in state to avoid JSON parse errors on empty strings.
+	var exported map[string]json.RawMessage
+	if err := json.Unmarshal(apiResponse.Manifest, &exported); err != nil {
+		response.Diagnostics.AddError("Slack API returned a manifest that is not a JSON object.", err.Error())
+
+		return
+	}
+
+	// Slack drops _metadata from the manifest on applying, so carry it over
+	// from the manifest in state. On import there is none yet.
 	hasLocalManifest := !data.Manifest.IsNull() && !data.Manifest.IsUnknown() && strings.TrimSpace(data.Manifest.ValueString()) != ""
-	// Slack API trims _metadata from the manifest on applying.
-	// To avoid unnecessary parsing and ignore diffs, only unmarshal when replacement is needed.
-	if hasLocalManifest && apiResponse.Manifest.Metadata == nil {
-		var newManifest manifest.App
-		if err := json.Unmarshal([]byte(data.Manifest.ValueString()), &newManifest); err != nil {
+	if _, ok := exported["_metadata"]; !ok && hasLocalManifest {
+		var local map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(data.Manifest.ValueString()), &local); err != nil {
 			response.Diagnostics.AddAttributeError(
 				path.Root("manifest"),
 				"Manifest must be a valid JSON.",
@@ -197,10 +201,14 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 			return
 		}
 
-		apiResponse.Manifest.Metadata = newManifest.Metadata
+		if metadata, ok := local["_metadata"]; ok {
+			exported["_metadata"] = metadata
+		}
 	}
 
-	manifestJSON, err := json.Marshal(apiResponse.Manifest)
+	// Every field Slack exported is kept, including the ones
+	// internal/slack/manifest does not model.
+	manifestJSON, err := json.Marshal(exported)
 	if err != nil {
 		response.Diagnostics.AddError("Failed to re-serialize the JSON manifest.", err.Error())
 

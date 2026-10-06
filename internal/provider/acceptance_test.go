@@ -201,3 +201,143 @@ import {
 		},
 	})
 }
+
+// acceptanceRichConfig is acceptanceConfig with more than one entry in each
+// array Slack treats as a set, so that reordering them shows.
+func acceptanceRichConfig(f *fakeSlack, name string) string {
+	return fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+
+data "slackapp_manifest" "test" {
+  display_information {
+    name = %q
+  }
+
+  features {
+    bot_user {
+      display_name = "Test Bot"
+    }
+  }
+
+  oauth_config {
+    redirect_urls = ["https://example.com/a", "https://example.com/b"]
+
+    scopes {
+      bot  = ["channels:read", "chat:write", "commands"]
+      user = ["identify", "users:read"]
+    }
+  }
+
+  settings {
+    event_subscriptions {
+      request_url = "https://example.com/events"
+      bot_events  = ["app_mention", "message.channels"]
+    }
+  }
+}
+
+resource "slackapp_application" "test" {
+  manifest = data.slackapp_manifest.test.json
+}
+`, f.baseURL(), name)
+}
+
+// acceptanceJSONConfig is an app whose manifest is written with jsonencode,
+// and carries outgoing_domains, which internal/slack/manifest does not
+// model.
+func acceptanceJSONConfig(f *fakeSlack, domain string) string {
+	return fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+
+resource "slackapp_application" "test" {
+  manifest = jsonencode({
+    display_information = {
+      name = "Example"
+    }
+    oauth_config = {
+      scopes = {
+        bot = ["commands", "chat:write"]
+      }
+    }
+    outgoing_domains = [%q]
+  })
+}
+`, f.baseURL(), domain)
+}
+
+// acceptanceCheckOutgoingDomains checks the outgoing_domains Slack holds for
+// the app in state.
+func acceptanceCheckOutgoingDomains(f *fakeSlack, want string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[acceptanceResource]
+		if !ok {
+			return fmt.Errorf("%s is not in state", acceptanceResource)
+		}
+
+		raw, ok := f.manifest(rs.Primary.ID)
+		if !ok {
+			return fmt.Errorf("Slack has no app %s", rs.Primary.ID)
+		}
+
+		var m struct {
+			OutgoingDomains []string `json:"outgoing_domains"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+
+		if len(m.OutgoingDomains) != 1 || m.OutgoingDomains[0] != want {
+			return fmt.Errorf("Slack holds outgoing_domains %q, want [%q]", m.OutgoingDomains, want)
+		}
+
+		return nil
+	}
+}
+
+// Slack exports a manifest with its keys and set-like arrays in its own
+// order. The plan after each apply must still be empty.
+func TestAccApplication_rewrittenExport(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acceptanceProviderFactories,
+		CheckDestroy:             acceptanceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: acceptanceRichConfig(f, "Example"),
+				Check:  acceptanceCheckName(f, "Example"),
+			},
+			{
+				Config: acceptanceRichConfig(f, "Renamed"),
+				Check:  acceptanceCheckName(f, "Renamed"),
+			},
+		},
+	})
+}
+
+// A field the provider does not model must still reach Slack when it is the
+// only thing that changes, and must not drift when it does not.
+func TestAccApplication_unmodeledField(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acceptanceProviderFactories,
+		CheckDestroy:             acceptanceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: acceptanceJSONConfig(f, "a.example.com"),
+				Check:  acceptanceCheckOutgoingDomains(f, "a.example.com"),
+			},
+			{
+				Config: acceptanceJSONConfig(f, "b.example.com"),
+				Check:  acceptanceCheckOutgoingDomains(f, "b.example.com"),
+			},
+		},
+	})
+}

@@ -4,10 +4,9 @@ package slack
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
-
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 type AppsManifestCreateRequest struct {
@@ -92,8 +91,10 @@ type AppsManifestExportRequest struct {
 }
 
 type AppsManifestExportResponse struct {
-	Ok       bool          `json:"ok"`
-	Manifest *manifest.App `json:"manifest"`
+	Ok bool `json:"ok"`
+	// Manifest is kept as the raw JSON Slack returned. Decoding it into
+	// manifest.App would drop every field that struct does not model.
+	Manifest json.RawMessage `json:"manifest"`
 }
 
 func (r AppsManifestExportResponse) IsOk() bool {

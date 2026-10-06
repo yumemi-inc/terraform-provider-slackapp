@@ -59,6 +59,8 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 // newRewritingFakeSlack returns a fake whose apps.manifest.export rewrites
 // the manifest: object keys in another order, the arrays Slack treats as
 // sets reversed. Only the bytes change.
+//
+//declscope:shared // acceptance_test.go checks that this causes no drift
 func newRewritingFakeSlack(t *testing.T) *fakeSlack {
 	t.Helper()
 
