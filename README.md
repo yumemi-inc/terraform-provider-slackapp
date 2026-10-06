@@ -24,7 +24,7 @@ terraform {
   required_providers {
     slackapp = {
       source  = "ymm-oss/slackapp"
-      version = "~> 0.3.0"
+      version = "~> 0.3.1"
     }
   }
 }
