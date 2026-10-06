@@ -57,7 +57,7 @@ func (d *SlackAppManifest) Schema(
 	response *datasource.SchemaResponse,
 ) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: "Represents manifest of the Slack App.",
+		MarkdownDescription: common.MovedNotice + "\n\nRepresents manifest of the Slack App.",
 		Blocks: map[string]schema.Block{
 			"metadata":            (*slackappmanifest.Metadata)(nil).Schema(),
 			"display_information": (*slackappmanifest.DisplayInformation)(nil).Schema(),
