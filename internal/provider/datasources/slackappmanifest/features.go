@@ -60,13 +60,13 @@ func (*BotUser) schema() *schema.SingleNestedBlock {
 		MarkdownDescription: "A subgroup of settings that describe [bot user](https://api.slack.com/bot-users) configuration.",
 		Attributes: map[string]schema.Attribute{
 			"display_name": &schema.StringAttribute{
-				MarkdownDescription: "A string containing the display name of the bot user. Maximum length is 80 characters. Allowed characters: `a-z`, `A-Z`, `0-9`, `-`, `_`, and `.`.",
+				MarkdownDescription: "A string containing the display name of the bot user. Maximum length is 80 characters. Allowed characters: `a-z`, `A-Z`, `0-9`, `-`, `_`, `.`, and space.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(80),
 					stringvalidator.RegexMatches(
-						regexp.MustCompile("^[0-9a-zA-Z-_.]+$"),
-						"must be a string that contains only `a-z`, `A-Z`, `0-9`, `-`, `_`, and `.`",
+						regexp.MustCompile("^[0-9a-zA-Z-_. ]+$"),
+						"must be a string that contains only `a-z`, `A-Z`, `0-9`, `-`, `_`, `.`, and space",
 					),
 				},
 			},
