@@ -16,13 +16,13 @@ import (
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
 
-type FeaturesAppHome struct {
+type AppHome struct {
 	HomeTabEnabled             types.Bool `tfsdk:"home_tab_enabled"`
 	MessagesTabEnabled         types.Bool `tfsdk:"messages_tab_enabled"`
 	MessagesTabReadOnlyEnabled types.Bool `tfsdk:"messages_tab_read_only_enabled"`
 }
 
-func (*FeaturesAppHome) schema() *schema.SingleNestedBlock {
+func (*AppHome) schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [App Home](https://api.slack.com/surfaces/tabs) configuration.",
 		Attributes: map[string]schema.Attribute{
@@ -42,7 +42,7 @@ func (*FeaturesAppHome) schema() *schema.SingleNestedBlock {
 	}
 }
 
-func (h FeaturesAppHome) Read() manifest.AppHome {
+func (h AppHome) Read() manifest.AppHome {
 	return manifest.AppHome{
 		HomeTabEnabled:             h.HomeTabEnabled.ValueBoolPointer(),
 		MessagesTabEnabled:         h.MessagesTabEnabled.ValueBoolPointer(),
@@ -50,12 +50,12 @@ func (h FeaturesAppHome) Read() manifest.AppHome {
 	}
 }
 
-type FeaturesBotUser struct {
+type BotUser struct {
 	DisplayName  types.String `tfsdk:"display_name"`
 	AlwaysOnline types.Bool   `tfsdk:"always_online"`
 }
 
-func (*FeaturesBotUser) schema() *schema.SingleNestedBlock {
+func (*BotUser) schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [bot user](https://api.slack.com/bot-users) configuration.",
 		Attributes: map[string]schema.Attribute{
@@ -83,21 +83,21 @@ func (*FeaturesBotUser) schema() *schema.SingleNestedBlock {
 	}
 }
 
-func (u FeaturesBotUser) Read() manifest.BotUser {
+func (u BotUser) Read() manifest.BotUser {
 	return manifest.BotUser{
 		DisplayName:  u.DisplayName.ValueString(),
 		AlwaysOnline: u.AlwaysOnline.ValueBoolPointer(),
 	}
 }
 
-type FeaturesShortcut struct {
+type Shortcut struct {
 	Name        types.String `tfsdk:"name"`
 	CallbackID  types.String `tfsdk:"callback_id"`
 	Description types.String `tfsdk:"description"`
 	Type        types.String `tfsdk:"type"`
 }
 
-func (*FeaturesShortcut) schema() *schema.ListNestedBlock {
+func (*Shortcut) schema() *schema.ListNestedBlock {
 	return &schema.ListNestedBlock{
 		MarkdownDescription: "An array of settings groups that describe [shortcuts](https://api.slack.com/interactivity/shortcuts) configuration. A maximum of 5 shortcuts can be included in this array.",
 		NestedObject: schema.NestedBlockObject{
@@ -135,7 +135,7 @@ func (*FeaturesShortcut) schema() *schema.ListNestedBlock {
 	}
 }
 
-func (s FeaturesShortcut) Read() manifest.Shortcut {
+func (s Shortcut) Read() manifest.Shortcut {
 	return manifest.Shortcut{
 		Name:        s.Name.ValueString(),
 		CallbackID:  s.CallbackID.ValueString(),
@@ -144,7 +144,7 @@ func (s FeaturesShortcut) Read() manifest.Shortcut {
 	}
 }
 
-type FeaturesSlashCommand struct {
+type SlashCommand struct {
 	Command      types.String `tfsdk:"command"`
 	Description  types.String `tfsdk:"description"`
 	ShouldEscape types.Bool   `tfsdk:"should_escape"`
@@ -152,7 +152,7 @@ type FeaturesSlashCommand struct {
 	UsageHint    types.String `tfsdk:"usage_hint"`
 }
 
-func (*FeaturesSlashCommand) schema() *schema.ListNestedBlock {
+func (*SlashCommand) schema() *schema.ListNestedBlock {
 	return &schema.ListNestedBlock{
 		MarkdownDescription: "An array of settings groups that describe [slash commands](https://api.slack.com/interactivity/slash-commands) configuration. A maximum of 5 slash commands can be included in this array.",
 		NestedObject: schema.NestedBlockObject{
@@ -195,7 +195,7 @@ func (*FeaturesSlashCommand) schema() *schema.ListNestedBlock {
 	}
 }
 
-func (c FeaturesSlashCommand) Read() manifest.SlashCommand {
+func (c SlashCommand) Read() manifest.SlashCommand {
 	return manifest.SlashCommand{
 		Command:      c.Command.ValueString(),
 		Description:  c.Description.ValueString(),
@@ -205,12 +205,12 @@ func (c FeaturesSlashCommand) Read() manifest.SlashCommand {
 	}
 }
 
-type FeaturesWorkflowStep struct {
+type WorkflowStep struct {
 	Name       types.String `tfsdk:"name"`
 	CallbackID types.String `tfsdk:"callback_id"`
 }
 
-func (*FeaturesWorkflowStep) schema() *schema.ListNestedBlock {
+func (*WorkflowStep) schema() *schema.ListNestedBlock {
 	return &schema.ListNestedBlock{
 		MarkdownDescription: "An array of settings groups that describe [workflow steps](https://api.slack.com/workflows/steps) configuration. A maximum of 10 workflow steps can be included in this array.",
 		NestedObject: schema.NestedBlockObject{
@@ -237,7 +237,7 @@ func (*FeaturesWorkflowStep) schema() *schema.ListNestedBlock {
 	}
 }
 
-func (s FeaturesWorkflowStep) Read() manifest.WorkflowStep {
+func (s WorkflowStep) Read() manifest.WorkflowStep {
 	return manifest.WorkflowStep{
 		Name:       s.Name.ValueString(),
 		CallbackID: s.CallbackID.ValueString(),
@@ -246,11 +246,11 @@ func (s FeaturesWorkflowStep) Read() manifest.WorkflowStep {
 
 type Features struct {
 	// Blocks
-	AppHome       *FeaturesAppHome       `tfsdk:"app_home"`
-	BotUser       *FeaturesBotUser       `tfsdk:"bot_user"`
-	Shortcuts     []FeaturesShortcut     `tfsdk:"shortcut"`
-	SlashCommands []FeaturesSlashCommand `tfsdk:"slash_command"`
-	WorkflowSteps []FeaturesWorkflowStep `tfsdk:"workflow_step"`
+	AppHome       *AppHome       `tfsdk:"app_home"`
+	BotUser       *BotUser       `tfsdk:"bot_user"`
+	Shortcuts     []Shortcut     `tfsdk:"shortcut"`
+	SlashCommands []SlashCommand `tfsdk:"slash_command"`
+	WorkflowSteps []WorkflowStep `tfsdk:"workflow_step"`
 
 	// Arguments
 	UnfurlDomains types.Set `tfsdk:"unfurl_domains"`
@@ -260,11 +260,11 @@ func (*Features) Schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A group of settings corresponding to the **Features** section of the app config pages.",
 		Blocks: map[string]schema.Block{
-			"app_home":      (*FeaturesAppHome)(nil).schema(),
-			"bot_user":      (*FeaturesBotUser)(nil).schema(),
-			"shortcut":      (*FeaturesShortcut)(nil).schema(),
-			"slash_command": (*FeaturesSlashCommand)(nil).schema(),
-			"workflow_step": (*FeaturesWorkflowStep)(nil).schema(),
+			"app_home":      (*AppHome)(nil).schema(),
+			"bot_user":      (*BotUser)(nil).schema(),
+			"shortcut":      (*Shortcut)(nil).schema(),
+			"slash_command": (*SlashCommand)(nil).schema(),
+			"workflow_step": (*WorkflowStep)(nil).schema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"unfurl_domains": &schema.SetAttribute{

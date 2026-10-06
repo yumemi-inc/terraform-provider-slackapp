@@ -15,13 +15,13 @@ import (
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
 
-type SettingsEventSubscriptions struct {
+type EventSubscriptions struct {
 	RequestURL types.String `tfsdk:"request_url"`
 	BotEvents  types.Set    `tfsdk:"bot_events"`
 	UserEvents types.Set    `tfsdk:"user_events"`
 }
 
-func (*SettingsEventSubscriptions) schema() *schema.SingleNestedBlock {
+func (*EventSubscriptions) schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [Events API](https://api.slack.com/events-api) configuration for the app.",
 		Attributes: map[string]schema.Attribute{
@@ -49,7 +49,7 @@ func (*SettingsEventSubscriptions) schema() *schema.SingleNestedBlock {
 	}
 }
 
-func (s SettingsEventSubscriptions) Read() manifest.EventSubscriptions {
+func (s EventSubscriptions) Read() manifest.EventSubscriptions {
 	return manifest.EventSubscriptions{
 		RequestURL: s.RequestURL.ValueStringPointer(),
 		BotEvents:  typeconv.MustStringSetAsArray(&s.BotEvents),
@@ -57,13 +57,13 @@ func (s SettingsEventSubscriptions) Read() manifest.EventSubscriptions {
 	}
 }
 
-type SettingsInteractivity struct {
+type Interactivity struct {
 	IsEnabled             types.Bool   `tfsdk:"is_enabled"`
 	RequestURL            types.String `tfsdk:"request_url"`
 	MessageMenuOptionsURL types.String `tfsdk:"message_menu_options_url"`
 }
 
-func (*SettingsInteractivity) schema() *schema.SingleNestedBlock {
+func (*Interactivity) schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [interactivity](https://api.slack.com/interactivity) configuration for the app.",
 		Attributes: map[string]schema.Attribute{
@@ -88,7 +88,7 @@ func (*SettingsInteractivity) schema() *schema.SingleNestedBlock {
 	}
 }
 
-func (i SettingsInteractivity) Read() manifest.Interactivity {
+func (i Interactivity) Read() manifest.Interactivity {
 	return manifest.Interactivity{
 		IsEnabled:             i.IsEnabled.ValueBool(),
 		RequestURL:            i.RequestURL.ValueStringPointer(),
@@ -98,8 +98,8 @@ func (i SettingsInteractivity) Read() manifest.Interactivity {
 
 type Settings struct {
 	// Blocks
-	EventSubscriptions *SettingsEventSubscriptions `tfsdk:"event_subscriptions"`
-	Interactivity      *SettingsInteractivity      `tfsdk:"interactivity"`
+	EventSubscriptions *EventSubscriptions `tfsdk:"event_subscriptions"`
+	Interactivity      *Interactivity      `tfsdk:"interactivity"`
 
 	// Arguments
 	AllowedIPAddressRanges types.Set  `tfsdk:"allowed_ip_address_ranges"`
@@ -112,8 +112,8 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A group of settings corresponding to the **Settings** section of the app config pages.",
 		Blocks: map[string]schema.Block{
-			"event_subscriptions": (*SettingsEventSubscriptions)(nil).schema(),
-			"interactivity":       (*SettingsInteractivity)(nil).schema(),
+			"event_subscriptions": (*EventSubscriptions)(nil).schema(),
+			"interactivity":       (*Interactivity)(nil).schema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"allowed_ip_address_ranges": &schema.SetAttribute{
