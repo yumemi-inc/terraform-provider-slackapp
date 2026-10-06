@@ -39,7 +39,6 @@ func TestSuppressEquivalentManifest(t *testing.T) {
 	}
 
 	for name, tc := range cases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 

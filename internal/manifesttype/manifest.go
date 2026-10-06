@@ -149,6 +149,8 @@ func (v Manifest) StringSemanticEquals(
 // every other field (functions, workflows, outgoing_domains, ...) from both
 // sides, so a change to only those fields would compare equal and never
 // reach Slack.
+//
+//declscope:shared // suppress_equivalent.go applies the same comparison at plan time
 func manifestsEqual(a, b string) (bool, error) {
 	valueA, err := canonicalManifest(a)
 	if err != nil {
