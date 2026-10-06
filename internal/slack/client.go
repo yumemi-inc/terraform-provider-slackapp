@@ -18,7 +18,7 @@ type Client struct {
 	baseURL               string
 	appConfigurationToken *string
 	refreshToken          *string
-	//declscope:package
+	//declscope:shared
 	httpClient *http.Client
 }
 
@@ -73,7 +73,7 @@ func (c *Client) createRequest(
 	return httpRequest, nil
 }
 
-//declscope:package
+//declscope:shared
 func (c *Client) createJSONRequest(
 	ctx context.Context,
 	httpMethod string, //nolint:unparam
@@ -95,7 +95,7 @@ func (c *Client) createJSONRequest(
 	return httpRequest, nil
 }
 
-//declscope:package
+//declscope:shared
 func (c *Client) createFormRequest(
 	ctx context.Context,
 	httpMethod string, //nolint:unparam
@@ -130,7 +130,7 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 	return nil
 }
 
-//declscope:package
+//declscope:shared
 func (c *Client) ensureAppConfigurationToken(ctx context.Context) error {
 	if c.appConfigurationToken == nil {
 		tflog.Debug(ctx, "No app configuration token is available, refreshing token.")

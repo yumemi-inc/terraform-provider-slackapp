@@ -14,7 +14,7 @@ type response interface {
 	IsOk() bool
 }
 
-//declscope:package
+//declscope:shared
 func readJSONResponse[T response](ctx context.Context, httpResponse *http.Response) (*T, error) {
 	responseBody, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
