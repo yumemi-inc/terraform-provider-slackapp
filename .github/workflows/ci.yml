@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Every tool is pinned in mise.toml, so CI and a local checkout run the
+      # same binaries.
+      - uses: jdx/mise-action@v5
+        with:
+          cache: true
+
+      - run: mise run build
+      - run: mise run test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v5
+        with:
+          cache: true
+
+      - run: mise run lint
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v5
+        with:
+          cache: true
+
+      # docs/ is generated from the provider schema, so a schema change that
+      # forgets to regenerate it fails here.
+      - run: mise run docs-check
