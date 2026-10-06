@@ -92,6 +92,7 @@ func (p *Provider) Metadata(
 
 func (p *Provider) Schema(_ context.Context, _ provider.SchemaRequest, response *provider.SchemaResponse) {
 	response.Schema = schema.Schema{
+		MarkdownDescription: common.MovedNotice,
 		Attributes: map[string]schema.Attribute{
 			"app_configuration_token": schema.StringAttribute{
 				MarkdownDescription: "App configuration token for the Slack Workspace.",
@@ -123,6 +124,8 @@ func (p *Provider) Configure(
 	if response.Diagnostics.HasError() {
 		return
 	}
+
+	response.Diagnostics.AddWarning(common.MovedWarningSummary, common.MovedWarningDetail)
 
 	client, err := configure(data)
 	if err != nil {

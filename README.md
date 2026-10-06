@@ -2,6 +2,16 @@
 
 [![CI](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml/badge.svg)](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml)
 
+> [!CAUTION]
+> **This provider has moved.** v0.2.9 is the last release of `yumemi-inc/slackapp`. Later releases are published as [ymm-oss/slackapp](https://registry.terraform.io/providers/ymm-oss/slackapp).
+>
+> To switch, change `source` to `"ymm-oss/slackapp"`, then run:
+>
+> ```bash
+> terraform state replace-provider yumemi-inc/slackapp ymm-oss/slackapp
+> terraform init
+> ```
+
 Terraform provider for managing Slack Apps using [app manifest](https://api.slack.com/automation/manifest).
 
 

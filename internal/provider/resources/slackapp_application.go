@@ -48,6 +48,7 @@ func (r *SlackApp) Metadata(
 
 func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
+		MarkdownDescription: common.MovedNotice,
 		Attributes: map[string]schema.Attribute{
 			// Arguments
 			"manifest": &schema.StringAttribute{
