@@ -3,12 +3,12 @@
 page_title: "slackapp_application Resource - terraform-provider-slackapp"
 subcategory: ""
 description: |-
-  !> This provider has moved. v0.2.9 is the last release of yumemi-inc/slackapp. Later releases are published as ymm-oss/slackapp https://registry.terraform.io/providers/ymm-oss/slackapp.
+  
 ---
 
 # slackapp_application (Resource)
 
-!> **This provider has moved.** v0.2.9 is the last release of `yumemi-inc/slackapp`. Later releases are published as [ymm-oss/slackapp](https://registry.terraform.io/providers/ymm-oss/slackapp).
+
 
 
 

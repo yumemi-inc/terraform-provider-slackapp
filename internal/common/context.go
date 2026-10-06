@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
 type ProviderContext struct {

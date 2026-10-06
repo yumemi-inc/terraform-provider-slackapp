@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 
 type EventSubscriptions struct {

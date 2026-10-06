@@ -1,9 +1,9 @@
 # Terraform Provider for Slack Apps
 
-[![CI](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml/badge.svg)](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml)
+[![CI](https://github.com/ymm-oss/terraform-provider-slackapp/actions/workflows/ci.yml/badge.svg)](https://github.com/ymm-oss/terraform-provider-slackapp/actions/workflows/ci.yml)
 
-> [!CAUTION]
-> **This provider has moved.** v0.2.9 is the last release of `yumemi-inc/slackapp`. Later releases are published as [ymm-oss/slackapp](https://registry.terraform.io/providers/ymm-oss/slackapp).
+> [!NOTE]
+> This provider was published as `yumemi-inc/slackapp` up to v0.2.9. Later releases are [ymm-oss/slackapp](https://registry.terraform.io/providers/ymm-oss/slackapp).
 >
 > To switch, change `source` to `"ymm-oss/slackapp"`, then run:
 >
@@ -23,8 +23,8 @@ Terraform provider for managing Slack Apps using [app manifest](https://api.slac
 terraform {
   required_providers {
     slackapp = {
-      source  = "yumemi-inc/slackapp"
-      version = "~> 0.2.8"
+      source  = "ymm-oss/slackapp"
+      version = "~> 0.3.0"
     }
   }
 }

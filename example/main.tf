@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     slackapp = {
-      source = "yumemi-inc/slackapp"
+      source = "ymm-oss/slackapp"
     }
   }
 }

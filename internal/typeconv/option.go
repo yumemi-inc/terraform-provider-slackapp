@@ -1,7 +1,7 @@
 package typeconv
 
 import (
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
 )
 
 func mapOption[T, U any](value *T, fn func(T) U) *U {
