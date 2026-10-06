@@ -1,6 +1,6 @@
 # Terraform Provider for Slack Apps
 
-[![Release](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/release.yaml/badge.svg)](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/release.yaml)
+[![CI](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml/badge.svg)](https://github.com/yumemi-inc/terraform-provider-slackapp/actions/workflows/ci.yml)
 
 Terraform provider for managing Slack Apps using [app manifest](https://api.slack.com/automation/manifest).
 
@@ -50,7 +50,7 @@ resource "slackapp_application" "default" {
 }
 
 output "app_id" {
-  value = data.slackapp_application.default.id
+  value = slackapp_application.default.id
 }
 ```
 

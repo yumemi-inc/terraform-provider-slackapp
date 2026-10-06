@@ -1,0 +1,8 @@
+# Each type here is the Terraform model of one Slack manifest block, and is
+# named after the manifest type it reads into (AppHome -> manifest.AppHome).
+# The file a type sits in only says which top-level block it is under, so a
+# name carrying the file's namespace (FeaturesAppHome) adds nothing and breaks
+# the match with internal/slack/manifest. The boundary rule stays on.
+rules:
+  naming:
+    qualify: never

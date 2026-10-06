@@ -1,0 +1,6 @@
+rules:
+  naming:
+    # Names must carry their namespace once a package has a second one.
+    qualify: ondemand
+    # The naming rule reaches exported declarations too.
+    exported: true
