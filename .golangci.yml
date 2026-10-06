@@ -44,7 +44,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/yumemi-inc/terraform-provider-slackapp)
+        - prefix(github.com/ymm-oss/terraform-provider-slackapp)
         - blank
         - dot
       custom-order: true

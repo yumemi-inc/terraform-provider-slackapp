@@ -1,4 +1,4 @@
-module github.com/yumemi-inc/terraform-provider-slackapp
+module github.com/ymm-oss/terraform-provider-slackapp
 
 go 1.27.1
 

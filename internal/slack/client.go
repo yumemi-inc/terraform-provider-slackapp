@@ -68,7 +68,7 @@ func (c *Client) createRequest(
 		httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
 	}
 
-	httpRequest.Header.Set("User-Agent", "yumemi-inc/terraform-provider-slackapp")
+	httpRequest.Header.Set("User-Agent", "ymm-oss/terraform-provider-slackapp")
 
 	return httpRequest, nil
 }

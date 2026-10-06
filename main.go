@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/provider"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider"
 )
 
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
@@ -21,7 +21,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/yumemi-inc/slackapp",
+		Address: "registry.terraform.io/ymm-oss/slackapp",
 		Debug:   debug,
 	}
 

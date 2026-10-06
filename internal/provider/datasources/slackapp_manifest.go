@@ -7,10 +7,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/provider/datasources/slackappmanifest"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/datasources/slackappmanifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 
 type SlackAppManifestModel struct {
@@ -57,7 +57,7 @@ func (d *SlackAppManifest) Schema(
 	response *datasource.SchemaResponse,
 ) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: common.MovedNotice + "\n\nRepresents manifest of the Slack App.",
+		MarkdownDescription: "Represents manifest of the Slack App.",
 		Blocks: map[string]schema.Block{
 			"metadata":            (*slackappmanifest.Metadata)(nil).Schema(),
 			"display_information": (*slackappmanifest.DisplayInformation)(nil).Schema(),

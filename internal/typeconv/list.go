@@ -1,7 +1,7 @@
 package typeconv
 
 import (
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
 )
 
 func MapListModel[T any, M common.Model[T]](model []M) []T {

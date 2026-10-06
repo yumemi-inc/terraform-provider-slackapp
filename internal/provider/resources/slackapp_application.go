@@ -14,10 +14,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/planmods"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/planmods"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 type SlackAppModel struct {
@@ -48,7 +48,6 @@ func (r *SlackApp) Metadata(
 
 func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: common.MovedNotice,
 		Attributes: map[string]schema.Attribute{
 			// Arguments
 			"manifest": &schema.StringAttribute{

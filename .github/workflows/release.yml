@@ -47,7 +47,7 @@ jobs:
           cache: true
 
       # The Terraform Registry only accepts a release whose SHA256SUMS file is
-      # signed with the GPG key registered for the yumemi-inc namespace.
+      # signed with the GPG key registered for the ymm-oss namespace.
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0

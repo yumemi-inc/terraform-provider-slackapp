@@ -11,10 +11,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/common"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/provider/datasources"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/provider/resources"
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/datasources"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/resources"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
@@ -92,7 +92,11 @@ func (p *Provider) Metadata(
 
 func (p *Provider) Schema(_ context.Context, _ provider.SchemaRequest, response *provider.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: common.MovedNotice,
+		// The Registry's "->" callout. Kept for users arriving from the old
+		// namespace, whose last release (v0.2.9) points here.
+		MarkdownDescription: "-> This provider was published as `yumemi-inc/slackapp` up to v0.2.9. " +
+			"To switch, change `source` to `\"ymm-oss/slackapp\"`, then run " +
+			"`terraform state replace-provider yumemi-inc/slackapp ymm-oss/slackapp` and `terraform init`.",
 		Attributes: map[string]schema.Attribute{
 			"app_configuration_token": schema.StringAttribute{
 				MarkdownDescription: "App configuration token for the Slack Workspace.",
@@ -124,8 +128,6 @@ func (p *Provider) Configure(
 	if response.Diagnostics.HasError() {
 		return
 	}
-
-	response.Diagnostics.AddWarning(common.MovedWarningSummary, common.MovedWarningDetail)
 
 	client, err := configure(data)
 	if err != nil {

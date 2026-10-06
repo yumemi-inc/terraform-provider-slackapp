@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/yumemi-inc/terraform-provider-slackapp/internal/slack/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 )
 
 type AppsManifestCreateRequest struct {
