@@ -24,7 +24,7 @@ terraform {
   required_providers {
     slackapp = {
       source  = "ymm-oss/slackapp"
-      version = "~> 0.3.0"
+      version = "~> 0.3.1"
     }
   }
 }
@@ -78,7 +78,7 @@ Every tool is pinned in [`mise.toml`](mise.toml). Run `mise install` once, then:
 
 ## Releasing
 
-Run the **Tag and Release** workflow from the Actions tab with a version such as `v0.3.0`. It pushes the tag and then publishes a signed release, which the Terraform Registry picks up.
+Run the **Tag and Release** workflow from the Actions tab with a version such as `v1.2.3`. It pushes the tag and then publishes a signed release, which the Terraform Registry picks up.
 
 To publish a tag that already exists, run the **Release** workflow instead.
 
