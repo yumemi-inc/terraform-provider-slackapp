@@ -3,14 +3,14 @@ name: declscope-authoring
 description: "Write or change Go code in a repository that runs declscope, which shows as a .declscope.y*ml or baseline file, //declscope: comments, or declscope in CI. Read this before adding, naming or moving a declaration, a helper that several files use, or a test. Read it too before splitting a file, writing a //declscope: directive, or acting on a declscope diagnostic. Covers where code belongs, naming it accurately, and fixes that hide a problem."
 license: MIT
 x-embedded-by: declscope
-x-embedded-version: 0.18.1
-x-embedded-at: "2026-10-06T02:42:48Z"
-x-embedded-digest: "sha256:5734fb2e16200f915df5216c999bf551fd555307ce7bb9c756dd880f78f25d14"
+x-embedded-version: 0.20.1
+x-embedded-at: "2026-10-06T21:48:50Z"
+x-embedded-digest: "sha256:b44421c7b002b2040c900ae319441c8fa4a3610da5320a281f22162e5d851581"
 ---
 
 # Writing code under declscope
 
-Written against **declscope 0.18.1**. Check the version first with `declscope -V=full`: this describes how that release behaves, not how an older one does.
+Written against **declscope 0.20.1**. Check the version first with `declscope -V=full`: this describes how that release behaves, not how an older one does.
 
 This skill is for everyday work in a repository that already runs declscope. Introducing it, choosing its configuration, and clearing a baseline are in [declscope-adoption](../declscope-adoption/SKILL.md), installed beside this one. What each directive and config key means is in [the README](https://github.com/mpyw/declscope#readme).
 
@@ -21,8 +21,8 @@ A file is a namespace. Its name comes from the file name: `user_repository.go` i
 | Declaration | Scope by default | Who may use it |
 | --- | --- | --- |
 | Unexported | `private` | Its own namespace only |
-| Exported | `package` | Any file of the package |
-| With `//declscope:package`, or in a file with one above the package clause | `package` | Any file of the package |
+| Exported | `shared` | Any file of the package |
+| With `//declscope:shared`, or in a file with one above the package clause | `shared` | Any file of the package |
 | With `//declscope:private`, or in a file with one above the package clause | `private` | Its own namespace only |
 
 **A field or an interface method takes the nearest scope stated for it.** The order is its own directive, its type's, a file-level one, then the default. With nothing stated, an unexported field of an exported type is private.
@@ -40,11 +40,11 @@ Which rules are on, and which config governs a package, is in [Check what is swi
 | The declaration is used by | Put it | Scope |
 | --- | --- | --- |
 | Code in one file | That file | Default. No directive |
-| Several files, as a shared helper on purpose | A file named for its concept, not the file of its first caller | `//declscope:package // <who uses it and why>` |
-| Most files of the package, as its shared model | A core file: `//declscope:core` plus a file-level `//declscope:package` | Package-wide, from the file directive |
+| Several files, as a shared helper on purpose | A file named for its concept, not the file of its first caller | `//declscope:shared // <who uses it and why>` |
+| Most files of the package, as its shared model | A core file: `//declscope:core` plus a file-level `//declscope:shared` | Package-wide, from the file directive |
 | Another package | Wherever it belongs, exported | Default for exported names |
 
-**A core file does not share its declarations by itself.** `//declscope:core` sets only the namespace, and exempts the file from the naming rule. Its unexported declarations are still private to the core. A core file whose declarations are shared also needs a file-level `//declscope:package`.
+**A core file does not share its declarations by itself.** `//declscope:core` sets only the namespace, and exempts the file from the naming rule. Its unexported declarations are still private to the core. A core file whose declarations are shared also needs a file-level `//declscope:shared`.
 
 **Before widening, ask whether the code is in the wrong file.** A boundary report on your new use says a file reached into another namespace. Often the function you are writing belongs beside what it uses. When the declaration is shared on purpose, check that it sits in a file named for its concept before you write the directive.
 
@@ -55,10 +55,10 @@ Which rules are on, and which config governs a package, is in [Check what is swi
 | Change | What declscope does | Do this |
 | --- | --- | --- |
 | Add a method to a type, in another file | The method takes its own file's namespace. Each private field it reads is reported at the field, in the type's file | Put the method in the type's file. If the two files are one unit, give the method's file the type's namespace with `//declscope:namespace`. Do not widen the fields |
-| Add a field that another file reads | Under a `//declscope:package` type it is shared already. With nothing stated, the use is reported | Write `//declscope:package // <who reads it>` on the field, or on the type when several fields cross |
+| Add a field that another file reads | Under a `//declscope:shared` type it is shared already. With nothing stated, the use is reported | Write `//declscope:shared // <who reads it>` on the field, or on the type when several fields cross |
 | Move code between files | Its namespace changes, and so does the name it must carry | Rename it, move its tests with it, and reread each `// reason` that names a file |
 | Split a file | Each new file is a new namespace, so calls between the halves are reported | Split along a real boundary. If the halves are one unit, give them one `//declscope:namespace` |
-| Export a name to get past a report | An exported name takes package scope, so the report goes away | Do not. In `internal/`, `declscope shrink` reports it. Elsewhere it becomes public API |
+| Export a name to get past a report | An exported name takes shared scope, so the report goes away | Do not. In `internal/`, `declscope shrink` reports it. Elsewhere it becomes public API |
 | Add a helper used only by generated code | Generated files are not read. The `surplus` rule stands down in a package holding one, so nothing is reported | Nothing to write. Never put directives in generated files, since they are not read. An ignore would silence nothing |
 
 ## Naming
@@ -99,7 +99,7 @@ When the accurate name reads badly with the namespace in it, do not bend the wor
 
 Sometimes the namespace a name must carry does not describe the thing. Then the declaration sits in the wrong file, and renaming it hides that.
 
-For example, a cache that two parts of a package read was placed in `surplus.go`. So it had to be called `surplusLinknamed`, and the other part's call read `c.surplusLinknamed(pass)`, as if it asked the surplus code. It belonged in the package's shared-model file, which is core and package-scoped as a whole. There it is just `linknamed`.
+For example, a cache that two parts of a package read was placed in `surplus.go`. So it had to be called `surplusLinknamed`, and the other part's call read `c.surplusLinknamed(pass)`, as if it asked the surplus code. It belonged in the package's shared-model file, which is core and shared as a whole. There it is just `linknamed`.
 
 | The prefix you must add | Do this |
 | --- | --- |
@@ -116,11 +116,11 @@ The namespace does not follow the subject's `//declscope:namespace`. If `user_ex
 | The test calls | Put it |
 | --- | --- |
 | Unexported code of one file | That file's `_test.go` |
-| Unexported code of two files | Split the test, or test through a package-scoped entry point |
-| A helper shared by several test files | A test file named for the helper, such as `fixture_test.go`. Put `//declscope:package // <which tests use it>` on the helper |
+| Unexported code of two files | Split the test, or test through a shared entry point |
+| A helper shared by several test files | A test file named for the helper, such as `fixture_test.go`. Put `//declscope:shared // <which tests use it>` on the helper |
 | Only exported names | Anywhere, including `package x_test` |
 
-**Uses only in `_test.go` files mean the test is misplaced.** Move the test. Never widen production code for a test, and never let `-fix` insert `//declscope:package` for one.
+**Uses only in `_test.go` files mean the test is misplaced.** Move the test. Never widen production code for a test, and never let `-fix` insert `//declscope:shared` for one.
 
 ### When the name spells the namespace in another form
 
@@ -164,13 +164,13 @@ Only the exact form `//declscope:name` is a directive: a line comment, no space 
 
 | Directive | Where it goes | Note |
 | --- | --- | --- |
-| `//declscope:package`, `//declscope:private` | The doc comment of the declaration, or trailing its first or last line | On a block, it reaches every spec in it |
+| `//declscope:shared`, `//declscope:private` | The doc comment of the declaration, or trailing its first or last line | On a block, it reaches every spec in it |
 | The same, file-level | Above the package clause | Reaches every declaration in the file, members included |
 | `//declscope:ignore <rules>` | The same places as either of the above. Rules are comma-separated | A bare ignore silences every rule except `overexported` |
 | `//declscope:namespace <name>` | Above the package clause | Below it, the `directive` rule reports it, and it has no effect |
 | `//declscope:core` | Above the package clause | Sets the namespace only. It shares nothing |
 
-**Write the reason after `//`.** `//declscope:package // rename.go reads it` and `//declscope:ignore boundary // why` are directives with reasons. Any other text after the name is read as an argument. `//declscope:ignore boundary because ...` is reported as an unknown rule.
+**Write the reason after `//`.** `//declscope:shared // rename.go reads it` and `//declscope:ignore boundary // why` are directives with reasons. Any other text after the name is read as an argument. `//declscope:ignore boundary because ...` is reported as an unknown rule.
 
 **A directive records a decision.** Write one only when it changes something, and say why. Under the default `unused: strict`, a directive that restates the scope already in force is reported.
 
@@ -180,7 +180,7 @@ When another namespace uses a struct, give each field the smallest scope it need
 
 | Declaration | Directive |
 | --- | --- |
-| The struct type, spelled from another namespace | `//declscope:package`. Its fields inherit it |
+| The struct type, spelled from another namespace | `//declscope:shared`. Its fields inherit it |
 | A field no other namespace reads | `//declscope:private`, after its doc comment and a `//` line |
 | A field another namespace reads | None |
 | An embedded field | None. It is not a target, and a directive there is reported as unused |
@@ -192,7 +192,7 @@ When another namespace uses a struct, give each field the smallest scope it need
 ```go
 // callee is a resolved call target.
 //
-//declscope:package
+//declscope:shared
 type callee struct {
 	// obj is the declared function or method, when there is one.
 	obj *types.Func
@@ -216,13 +216,13 @@ Do not reorder fields where the order is observable. Add the directives in place
 
 Under `surplus: strict`, declscope reports each field no other namespace reads. Where `surplus` is off or stands down, find them by hand. Mark every field `//declscope:private`. Then delete the directive from each field reported as used from another namespace.
 
-**A type nobody else spells needs no directive.** If callers only get it from a constructor, `//declscope:package` on it is reported:
+**A type nobody else spells needs no directive.** If callers only get it from a constructor, `//declscope:shared` on it is reported:
 
 ```text
-//declscope:package on hidden, hidden.a: no use from another namespace is visible to declscope
+//declscope:shared on hidden, hidden.a: no use from another namespace is visible to declscope
 ```
 
-Keep that type and its fields private. Expose small package-scoped functions that return what callers need.
+Keep that type and its fields private. Expose small shared functions that return what callers need.
 
 ## Acting on a diagnostic your change caused
 
@@ -230,14 +230,14 @@ Keep that type and its fields private. Expose small package-scoped functions tha
 
 | Report | First question | Usual answer |
 | --- | --- | --- |
-| `X is private to namespace "a"` (or `to the core namespace`), `but is used from namespace "b"`, or `X is declared private by ...` | Should your code live beside `X`? | Move your code beside `X`. If `X` is shared on purpose and sits in one caller's file, move it to a file named for its concept first. Then write `//declscope:package // why` on `X`. When `X` states its own `//declscope:private`, that was a decision: move your code, and do not flip the directive |
-| `//declscope:package on X: no use from another namespace is visible` | Did the use that justified it go away? | Delete the directive |
-| `X takes package scope from //declscope:package on Y, but no use ...` | Does any other file read `X`? | Accept `-fix`'s `//declscope:private` on `X`. For a field, move it to the end of the struct |
+| `X is private to namespace "a"` (or `to the core namespace`), `but is used from namespace "b"`, or `X is declared private by ...` | Should your code live beside `X`? | Move your code beside `X`. If `X` is shared on purpose and sits in one caller's file, move it to a file named for its concept first. Then write `//declscope:shared // why` on `X`. When `X` states its own `//declscope:private`, that was a decision: move your code, and do not flip the directive |
+| `//declscope:shared on X: no use from another namespace is visible` | Did the use that justified it go away? | Delete the directive |
+| `X takes shared scope from //declscope:shared on Y, but no use ...` | Does any other file read `X`? | Accept `-fix`'s `//declscope:private` on `X`. For a field, move it to the end of the struct |
 | `unused //declscope:...` | Does the directive still change anything? | Delete it |
 | `X does not carry namespace "a"` | Is the name accurate, and is `X` in the right file? | See [Naming](#naming). Rename only when both answers are yes |
 | `X is exported, but nothing outside ... uses it` (`declscope shrink`) | Does another package really need it? | See [Reading what shrink reports](#reading-what-shrink-reports) |
 
-**`-fix` widens. It does not draw boundaries.** On a boundary report, `-fix` inserts `//declscope:package` instead of moving code. That also leaves the declaration in its first caller's file, with that caller's prefix. Read `-fix -diff` before `-fix`. Its rename is offered only when it is proven safe, but it cannot tell whether the name was accurate.
+**`-fix` widens. It does not draw boundaries.** On a boundary report, `-fix` inserts `//declscope:shared` instead of moving code. That also leaves the declaration in its first caller's file, with that caller's prefix. Read `-fix -diff` before `-fix`. Its rename is offered only when it is proven safe, but it cannot tell whether the name was accurate.
 
 ### Reading what shrink reports
 
@@ -270,7 +270,7 @@ A bare `//declscope:ignore` does not reach `overexported`. Name the rule. Names 
 | Tempting | Why not |
 | --- | --- |
 | `rules.boundary: off` | Turns off the rule the tool exists for |
-| `//declscope:core`, or a file-level `//declscope:package` on a file whose declarations are not all shared | Hides the boundaries instead of stating them |
+| `//declscope:core`, or a file-level `//declscope:shared` on a file whose declarations are not all shared | Hides the boundaries instead of stating them |
 | Exporting a name | Moves the problem to `shrink`, or into the public API |
 | A name bent to carry the namespace | Passes the check and misleads the reader |
 | Regenerating the baseline over new findings | Records your new crossing as if it were old |

@@ -81,3 +81,5 @@ Every tool is pinned in [`mise.toml`](mise.toml). Run `mise install` once, then:
 Run the **Tag and Release** workflow from the Actions tab with a version such as `v0.3.0`. It pushes the tag and then publishes a signed release, which the Terraform Registry picks up.
 
 To publish a tag that already exists, run the **Release** workflow instead.
+
+The signing key is held in the `release` environment as `GPG_PRIVATE_KEY` and `PASSPHRASE`. Its public key, `44635C222EB523FD`, is registered for the ymm-oss namespace on the Terraform Registry.

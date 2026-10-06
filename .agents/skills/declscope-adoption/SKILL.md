@@ -3,14 +3,14 @@ name: declscope-adoption
 description: Adopt declscope on an existing Go codebase and drive its diagnostics to zero. Read this when introducing declscope to a repository, when choosing its configuration, when running declscope shrink for the first time, or when clearing a declscope baseline. Covers sizing each rule before enabling it, reading the diagnostics as structure, the remedy for each shape, and the measurement traps that produce false confidence. For writing new code in a repository that already runs declscope, use declscope-authoring.
 license: MIT
 x-embedded-by: declscope
-x-embedded-version: 0.18.1
-x-embedded-at: "2026-10-06T02:42:48Z"
-x-embedded-digest: "sha256:6e173961818cf450cb66ad83b8e53b7a1cbe2b90e4ff8262487f67fdb4b53c01"
+x-embedded-version: 0.20.1
+x-embedded-at: "2026-10-06T21:48:50Z"
+x-embedded-digest: "sha256:10dc505a7427e5ade817561c1593e71fbf9fd8648f0a611c6bb8a719b0d3960e"
 ---
 
 # Adopting declscope
 
-Written against **declscope 0.18.1**. Check the version first with `declscope -V=full`: this describes how that release behaves, not how an older one does.
+Written against **declscope 0.20.1**. Check the version first with `declscope -V=full`: this describes how that release behaves, not how an older one does.
 
 **Read [the README](https://github.com/mpyw/declscope#readme) before the first decision.** This skill covers what to do about the diagnostics. What each directive means, and what the config accepts, is there.
 
@@ -56,7 +56,7 @@ Each file's patterns are read against **its own** directory, and anchor there wh
 
 **The minimum is no config file at all.** `boundary`, `surplus: strict` and `unused: strict` are on. They check reach and whether directives still change anything; the naming rule checks a convention. Adopting this much is a complete adoption.
 
-**Size the default `surplus` findings before changing code.** `loose` judges a `//declscope:package` as a whole, so one reached declaration keeps the whole directive quiet. The default `strict` also reports each declaration the directive widens for nothing, and one `declscope -fix` run inserts every `//declscope:private` it asks for. If the owner wants the narrower check, set `surplus: loose` explicitly.
+**Size the default `surplus` findings before changing code.** `loose` judges a `//declscope:shared` as a whole, so one reached declaration keeps the whole directive quiet. The default `strict` also reports each declaration the directive widens for nothing, and one `declscope -fix` run inserts every `//declscope:private` it asks for. If the owner wants the narrower check, set `surplus: loose` explicitly.
 
 ```bash
 declscope survey -format=json ./... | jq .totals.surplus.found
@@ -104,13 +104,13 @@ Every count in the rest of this skill assumes `qualify: ondemand` with `exported
 
 **`declscope shrink` reports the exported declarations of `internal/` packages that nothing outside their package uses.** With `-fix` it unexports them. The analyzer cannot answer this: it reads one package, and any importer might use an exported name. Inside `internal/`, Go limits the importers to one directory tree, so `shrink` loads the whole module and sees every one of them.
 
-An exported name inside `internal/` claims that another package depends on it. Where nothing does, the claim is false, and it hides the declaration from the rest of declscope. An exported declaration takes package scope by default, so no boundary is ever reported on it. Unexported, it takes `private`, and the analyzer checks who reaches it.
+An exported name inside `internal/` claims that another package depends on it. Where nothing does, the claim is false, and it hides the declaration from the rest of declscope. An exported declaration takes shared scope by default, so no boundary is ever reported on it. Unexported, it takes `private`, and the analyzer checks who reaches it.
 
 ### Run it before the analyzer
 
 **Run `shrink`, and apply its fixes, before you work on the analyzer's reports.** A declaration it unexports becomes private to its namespace. Wherever another file of the package uses it, the analyzer then reports a boundary crossing that was not there before. Fixing in the other order means a second round.
 
-This happened when declscope held itself to `shrink`. The fix unexported twelve declarations, and nine of them were used from other files of their package. The analyzer then needed nine `//declscope:package` directives to state those crossings.
+This happened when declscope held itself to `shrink`. The fix unexported twelve declarations, and nine of them were used from other files of their package. The analyzer then needed nine `//declscope:shared` directives to state those crossings.
 
 | Step | Command |
 | --- | --- |
@@ -198,8 +198,8 @@ An edge's `state` (`edges[].state`) is one of six:
 | `reported` | A finding, printed |
 | `baselined` | A finding, absorbed by the baseline |
 | `ignored` | A finding, silenced by an ignore |
-| `declared` | No finding: a `//declscope:package` says it is shared |
-| `open` | No finding: package-scoped because nothing says otherwise, which is most exported API |
+| `declared` | No finding: a `//declscope:shared` says it is shared |
+| `open` | No finding: shared because nothing says otherwise, which is most exported API |
 | `unchecked` | No finding: `rules.boundary` is `off` |
 
 **Nothing reported, much baselined and nothing declared means nobody has decided.** Such a package reads as clean under the analyzer alone. That is why `declared` is a column.
@@ -231,7 +231,7 @@ A baselined finding counts toward it: the baseline defers a decision rather than
 | A type's fields are read from four files | One type filed by concern | The files share a namespace, or join the core |
 | Calls run one way through three files | A pipeline, and the layers are real | Keep the files. Declare only what crosses, with the reason |
 | `pkg.Foo` is asked to become `pkg.PkgFoo` | The file is the package's API | `//declscope:core` |
-| One helper is used from several files | Shared on purpose | Move it to a file named for its concept, then `//declscope:package // why`. See [Where a new declaration goes](../declscope-authoring/SKILL.md#where-a-new-declaration-goes) |
+| One helper is used from several files | Shared on purpose | Move it to a file named for its concept, then `//declscope:shared // why`. See [Where a new declaration goes](../declscope-authoring/SKILL.md#where-a-new-declaration-goes) |
 | A name reads badly with its namespace in it | Often the file name, not the declaration | Rename the file |
 
 **Two rows can fire on one cluster.** A mutual pair whose declarations four other namespaces also read matches both the second row and the third. Take the one with the larger `clears`. Merging two namespaces settles only what no third namespace reaches. So the fan-in case is usually the smaller change, and the core case the larger.

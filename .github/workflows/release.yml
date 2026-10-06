@@ -20,6 +20,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # GPG_PRIVATE_KEY and PASSPHRASE live in this environment, not in the
+    # repository, so that only this job can read the signing key. The
+    # environment's deployment branches are limited to main.
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v7
