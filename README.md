@@ -71,7 +71,7 @@ Every tool is pinned in [`mise.toml`](mise.toml). Run `mise install` once, then:
 | Command | What it does |
 | --- | --- |
 | `mise run build` | Build the provider binary |
-| `mise run test` | Run the unit tests |
+| `mise run test` | Run the unit tests, and the acceptance tests that drive the provider through Terraform against a fake Slack API |
 | `mise run lint` | Run golangci-lint (linters and formatters) and [declscope](https://github.com/mpyw/declscope) |
 | `mise run fix` | Apply the fixes that golangci-lint and declscope suggest |
 | `mise run docs` | Regenerate `docs/` from the provider schema |

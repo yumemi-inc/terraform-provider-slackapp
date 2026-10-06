@@ -8,6 +8,8 @@ go = "1.27.1"
 golangci-lint = "2.14.0"
 "github:hashicorp/terraform-plugin-docs" = { version = "0.25.0", exe = "tfplugindocs" }
 "github:mpyw/declscope" = "0.20.1"
+# The acceptance tests in internal/provider run this terraform.
+terraform = "1.16.5"
 
 [tasks.build]
 description = "Build the provider binary"
