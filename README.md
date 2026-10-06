@@ -53,3 +53,21 @@ output "app_id" {
   value = data.slackapp_application.default.id
 }
 ```
+
+## Development
+
+Every tool is pinned in [`mise.toml`](mise.toml). Run `mise install` once, then:
+
+| Command | What it does |
+| --- | --- |
+| `mise run build` | Build the provider binary |
+| `mise run test` | Run the unit tests |
+| `mise run lint` | Run golangci-lint (linters and formatters) and [declscope](https://github.com/mpyw/declscope) |
+| `mise run fix` | Apply the fixes that golangci-lint and declscope suggest |
+| `mise run docs` | Regenerate `docs/` from the provider schema |
+
+## Releasing
+
+Run the **Tag and Release** workflow from the Actions tab with a version such as `v0.3.0`. It pushes the tag and then publishes a signed release, which the Terraform Registry picks up.
+
+To publish a tag that already exists, run the **Release** workflow instead.

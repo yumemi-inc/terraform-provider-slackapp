@@ -1,39 +1,52 @@
+version: "2"
+
 issues:
-  max-per-linter: 0
+  max-issues-per-linter: 0
   max-same-issues: 0
 
 linters:
-  disable-all: true
+  default: none
+  # exportloopref and tenv from the v1 config are gone: Go 1.22 made loop
+  # variables per-iteration, and usetesting replaces tenv.
   enable:
     - durationcheck
     - errcheck
-    - exportloopref
     - forcetypeassert
-    - gci
     - godot
-    - gofmt
-    - gofumpt
-    - goimports
-    - gosimple
+    - govet
     - ineffassign
     - makezero
     - misspell
     - nilerr
     - predeclared
     - staticcheck
-    - tenv
     - unconvert
     - unparam
     - unused
-    - vet
+    - usetesting
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
 
-linters-settings:
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/yumemi-inc/terraform-provider-slackapp)
-      - blank
-      - dot
-    skip-generated: true
-    custom-order: true
+# golangci-lint v2 runs these itself, so none of them is installed separately.
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/yumemi-inc/terraform-provider-slackapp)
+        - blank
+        - dot
+      custom-order: true
+  exclusions:
+    generated: lax

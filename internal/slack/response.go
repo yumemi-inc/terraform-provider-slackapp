@@ -10,11 +10,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-type Response interface {
+type response interface {
 	IsOk() bool
 }
 
-func readJSONResponse[T Response](ctx context.Context, httpResponse *http.Response) (*T, error) {
+//declscope:package
+func readJSONResponse[T response](ctx context.Context, httpResponse *http.Response) (*T, error) {
 	responseBody, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, err

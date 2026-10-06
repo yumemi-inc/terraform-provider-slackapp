@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., v1.2.3) - tag must already exist"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to release (e.g., v1.2.3) - tag must already exist"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # goreleaser derives the version from the checked-out tag, so the full
+          # history (and its tags) has to be here.
+          ref: ${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Validate version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Invalid version format '$VERSION'"
+            echo "Expected format: vX.Y.Z (e.g., v1.2.3)"
+            exit 1
+          fi
+          echo "Version format valid: $VERSION"
+
+      # Go comes from mise.toml, so the release is built with the same
+      # toolchain as CI.
+      - uses: jdx/mise-action@v5
+        with:
+          cache: true
+
+      # The Terraform Registry only accepts a release whose SHA256SUMS file is
+      # signed with the GPG key registered for the yumemi-inc namespace.
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+
+      - name: Build and publish release
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          # Pinned exactly (not "~> v2"): goreleaser 2.18.0 attests every build
+          # artifact, which fails this job. 2.17.1 is the last release before that.
+          version: "2.17.1"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}

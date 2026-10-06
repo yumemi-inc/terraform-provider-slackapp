@@ -1,0 +1,48 @@
+# Pins the tools so that CI and a local checkout run the same ones.
+#
+# go must match the go directive in go.mod. golangci-lint refuses to load a
+# module whose go directive is newer than its own, so a mismatch between this
+# file and go.mod makes lint fail for a reason that is hard to read.
+[tools]
+go = "1.27.1"
+golangci-lint = "2.14.0"
+"github:hashicorp/terraform-plugin-docs" = { version = "0.25.0", exe = "tfplugindocs" }
+"github:mpyw/declscope" = "0.18.1"
+
+[tasks.build]
+description = "Build the provider binary"
+run = "go build ."
+
+[tasks.test]
+description = "Run the unit tests"
+run = "go test -race ./..."
+
+# declscope shrink goes before the analyzer: a declaration it unexports
+# becomes private to its file, and only the analyzer reports a use of it from
+# another file. Running them in this order converges in one pass.
+[tasks.lint]
+description = "Run golangci-lint and declscope"
+run = [
+  "golangci-lint run ./...",
+  "golangci-lint fmt --diff ./...",
+  "declscope shrink",
+  "declscope ./...",
+]
+
+[tasks.fix]
+description = "Apply the fixes that golangci-lint and declscope suggest"
+run = [
+  "golangci-lint run --fix ./...",
+  "golangci-lint fmt ./...",
+  "declscope shrink -fix",
+  "declscope -fix ./...",
+]
+
+[tasks.docs]
+description = "Regenerate docs/ from the provider schema"
+run = "tfplugindocs generate"
+
+[tasks.docs-check]
+description = "Fail when docs/ is out of date with the provider schema"
+depends = ["docs"]
+run = "git diff --exit-code -- docs"
