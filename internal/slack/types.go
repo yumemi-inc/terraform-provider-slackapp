@@ -1,3 +1,5 @@
+//declscope:core // the slack package's API: Slack Web API methods and the types they share
+
 package slack
 
 import (

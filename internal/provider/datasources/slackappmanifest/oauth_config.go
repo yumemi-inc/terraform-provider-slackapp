@@ -10,12 +10,12 @@ import (
 	"github.com/yumemi-inc/terraform-provider-slackapp/internal/typeconv"
 )
 
-type Scopes struct {
+type OauthConfigScopes struct {
 	Bot  types.Set `tfsdk:"bot"`
 	User types.Set `tfsdk:"user"`
 }
 
-func (*Scopes) schema() *schema.SingleNestedBlock {
+func (*OauthConfigScopes) schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A subgroup of settings that describe [permission scopes](https://api.slack.com/scopes) configuration.",
 		Attributes: map[string]schema.Attribute{
@@ -39,7 +39,7 @@ func (*Scopes) schema() *schema.SingleNestedBlock {
 	}
 }
 
-func (s Scopes) Read() manifest.Scopes {
+func (s OauthConfigScopes) Read() manifest.Scopes {
 	return manifest.Scopes{
 		Bot:  typeconv.MustStringSetAsArray(&s.Bot),
 		User: typeconv.MustStringSetAsArray(&s.User),
@@ -48,7 +48,7 @@ func (s Scopes) Read() manifest.Scopes {
 
 type OauthConfig struct {
 	// Blocks
-	Scopes *Scopes `tfsdk:"scopes"`
+	Scopes *OauthConfigScopes `tfsdk:"scopes"`
 
 	// Arguments
 	RedirectURLs types.Set `tfsdk:"redirect_urls"`
@@ -58,7 +58,7 @@ func (*OauthConfig) Schema() *schema.SingleNestedBlock {
 	return &schema.SingleNestedBlock{
 		MarkdownDescription: "A group of settings describing OAuth configuration for the app.",
 		Blocks: map[string]schema.Block{
-			"scopes": (*Scopes)(nil).schema(),
+			"scopes": (*OauthConfigScopes)(nil).schema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"redirect_urls": &schema.SetAttribute{

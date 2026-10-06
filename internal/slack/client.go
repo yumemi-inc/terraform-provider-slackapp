@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-const defaultBaseURL = "https://slack.com/api/"
+const clientDefaultBaseURL = "https://slack.com/api/"
 
 type Client struct {
 	baseURL               string
@@ -24,7 +24,7 @@ type Client struct {
 
 func NewClient(appConfigurationToken string) *Client {
 	return &Client{
-		baseURL:               defaultBaseURL,
+		baseURL:               clientDefaultBaseURL,
 		appConfigurationToken: &appConfigurationToken,
 		httpClient:            http.DefaultClient,
 	}
@@ -32,7 +32,7 @@ func NewClient(appConfigurationToken string) *Client {
 
 func NewClientFromRefreshToken(refreshToken string) *Client {
 	return &Client{
-		baseURL:      defaultBaseURL,
+		baseURL:      clientDefaultBaseURL,
 		refreshToken: &refreshToken,
 		httpClient:   http.DefaultClient,
 	}
