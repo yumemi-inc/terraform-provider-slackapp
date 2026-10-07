@@ -16,7 +16,7 @@ import (
 // it was sent. One from newRewritingFakeSlack rewrites it on export the way
 // Slack does, without changing what it means.
 //
-//declscope:shared // acceptance_test.go runs every test against one
+//declscope:shared // application_resource_test.go runs every test against one
 type fakeSlack struct {
 	//declscope:private
 	server *httptest.Server
@@ -36,12 +36,12 @@ type fakeSlack struct {
 // fakeSlackAppID is the ID the fake gives the nth app it creates, counting
 // from 1, so that a test can name an app before it exists.
 //
-//declscope:shared // acceptance_test.go names an app before creating it
+//declscope:shared // application_resource_test.go names an app before creating it
 func fakeSlackAppID(n int) string {
 	return fmt.Sprintf("A%09d", n)
 }
 
-//declscope:shared // acceptance_test.go starts one per test
+//declscope:shared // application_resource_test.go starts one per test
 func newFakeSlack(t *testing.T) *fakeSlack {
 	t.Helper()
 
@@ -68,7 +68,7 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 //
 // Arrays keep the order they were sent in, as Slack's do.
 //
-//declscope:shared // acceptance_test.go checks that this causes no drift
+//declscope:shared // application_resource_test.go checks that this causes no drift
 func newRewritingFakeSlack(t *testing.T) *fakeSlack {
 	t.Helper()
 
@@ -132,7 +132,7 @@ func fakeSlackRewrite(raw json.RawMessage) (json.RawMessage, error) {
 
 // baseURL is what the provider's base_url points at.
 //
-//declscope:shared // acceptance_test.go checks Slack through it
+//declscope:shared // application_resource_test.go checks Slack through it
 func (f *fakeSlack) baseURL() string {
 	return f.server.URL + "/"
 }
@@ -140,7 +140,7 @@ func (f *fakeSlack) baseURL() string {
 // manifest returns the manifest Slack holds for the app, and whether the app
 // exists.
 //
-//declscope:shared // acceptance_test.go checks Slack through it
+//declscope:shared // application_resource_test.go checks Slack through it
 func (f *fakeSlack) manifest(appID string) (json.RawMessage, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -153,7 +153,7 @@ func (f *fakeSlack) manifest(appID string) (json.RawMessage, bool) {
 // editManifest changes the manifest Slack holds for the app, as someone
 // editing it in Slack's own settings pages would.
 //
-//declscope:shared // acceptance_test.go checks that the change shows as drift
+//declscope:shared // application_resource_test.go checks that the change shows as drift
 func (f *fakeSlack) editManifest(t *testing.T, appID string, edit func(map[string]any)) {
 	t.Helper()
 
@@ -177,7 +177,7 @@ func (f *fakeSlack) editManifest(t *testing.T, appID string, edit func(map[strin
 
 // appCount returns how many apps exist.
 //
-//declscope:shared // acceptance_test.go checks Slack through it
+//declscope:shared // application_resource_test.go checks Slack through it
 func (f *fakeSlack) appCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -187,7 +187,7 @@ func (f *fakeSlack) appCount() int {
 
 // callCount returns how many times a method was called.
 //
-//declscope:shared // acceptance_test.go checks Slack through it
+//declscope:shared // application_resource_test.go checks Slack through it
 func (f *fakeSlack) callCount(method string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

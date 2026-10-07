@@ -18,15 +18,15 @@ import (
 // nothing leaves the machine: they need no TF_ACC, only a terraform binary on
 // PATH, which mise.toml pins.
 
-var acceptanceProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
+var applicationResourceProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"slackapp": providerserver.NewProtocol6WithError(provider.New("test")()),
 }
 
-const acceptanceResource = "slackapp_application.test"
+const applicationResourceResource = "slackapp_application.test"
 
-// acceptanceBaseConfig is a provider pointed at the fake, and a manifest
+// applicationResourceBaseConfig is a provider pointed at the fake, and a manifest
 // built with the slackapp_manifest data source.
-func acceptanceBaseConfig(f *fakeSlack, name string) string {
+func applicationResourceBaseConfig(f *fakeSlack, name string) string {
 	return fmt.Sprintf(`
 provider "slackapp" {
   base_url                = %q
@@ -57,21 +57,21 @@ data "slackapp_manifest" "test" {
 `, f.baseURL(), name)
 }
 
-// acceptanceConfig adds one app built from that manifest.
-func acceptanceConfig(f *fakeSlack, name string) string {
-	return acceptanceBaseConfig(f, name) + `
+// applicationResourceConfig adds one app built from that manifest.
+func applicationResourceConfig(f *fakeSlack, name string) string {
+	return applicationResourceBaseConfig(f, name) + `
 resource "slackapp_application" "test" {
   manifest = data.slackapp_manifest.test.json
 }
 `
 }
 
-// acceptanceCheckName checks the name Slack holds for the app in state.
-func acceptanceCheckName(f *fakeSlack, want string) resource.TestCheckFunc {
+// applicationResourceCheckName checks the name Slack holds for the app in state.
+func applicationResourceCheckName(f *fakeSlack, want string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[acceptanceResource]
+		rs, ok := s.RootModule().Resources[applicationResourceResource]
 		if !ok {
-			return fmt.Errorf("%s is not in state", acceptanceResource)
+			return fmt.Errorf("%s is not in state", applicationResourceResource)
 		}
 
 		raw, ok := f.manifest(rs.Primary.ID)
@@ -96,8 +96,8 @@ func acceptanceCheckName(f *fakeSlack, want string) resource.TestCheckFunc {
 	}
 }
 
-// acceptanceCheckDestroyed checks that destroy deleted every app.
-func acceptanceCheckDestroyed(f *fakeSlack) resource.TestCheckFunc {
+// applicationResourceCheckDestroyed checks that destroy deleted every app.
+func applicationResourceCheckDestroyed(f *fakeSlack) resource.TestCheckFunc {
 	return func(*terraform.State) error {
 		if n := f.appCount(); n != 0 {
 			return fmt.Errorf("Slack still has %d app(s) after destroy", n)
@@ -113,22 +113,22 @@ func TestAccApplication_lifecycle(t *testing.T) {
 	f := newFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceConfig(f, "Example"),
+				Config: applicationResourceConfig(f, "Example"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(acceptanceResource, "id"),
-					resource.TestCheckResourceAttrSet(acceptanceResource, "credentials.client_secret"),
-					resource.TestCheckResourceAttrSet(acceptanceResource, "oauth_authorize_url"),
-					acceptanceCheckName(f, "Example"),
+					resource.TestCheckResourceAttrSet(applicationResourceResource, "id"),
+					resource.TestCheckResourceAttrSet(applicationResourceResource, "credentials.client_secret"),
+					resource.TestCheckResourceAttrSet(applicationResourceResource, "oauth_authorize_url"),
+					applicationResourceCheckName(f, "Example"),
 				),
 			},
 			{
-				Config: acceptanceConfig(f, "Renamed"),
+				Config: applicationResourceConfig(f, "Renamed"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					acceptanceCheckName(f, "Renamed"),
+					applicationResourceCheckName(f, "Renamed"),
 					func(*terraform.State) error {
 						if n := f.callCount("apps.manifest.create"); n != 1 {
 							return fmt.Errorf("apps.manifest.create called %d times, want 1: a rename must update in place", n)
@@ -160,15 +160,15 @@ func TestAccApplication_import(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceConfig(f, "Example"),
-				Check:  resource.TestCheckResourceAttr(acceptanceResource, "id", appID),
+				Config: applicationResourceConfig(f, "Example"),
+				Check:  resource.TestCheckResourceAttr(applicationResourceResource, "id", appID),
 			},
 			{
-				Config: acceptanceBaseConfig(f, "Example") + `
+				Config: applicationResourceBaseConfig(f, "Example") + `
 removed {
   from = slackapp_application.test
 
@@ -186,25 +186,25 @@ removed {
 				},
 			},
 			{
-				Config: acceptanceConfig(f, "Example") + fmt.Sprintf(`
+				Config: applicationResourceConfig(f, "Example") + fmt.Sprintf(`
 import {
   to = slackapp_application.test
   id = %q
 }
 `, appID),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(acceptanceResource, "id", appID),
-					resource.TestCheckNoResourceAttr(acceptanceResource, "credentials.client_secret"),
-					resource.TestCheckNoResourceAttr(acceptanceResource, "oauth_authorize_url"),
+					resource.TestCheckResourceAttr(applicationResourceResource, "id", appID),
+					resource.TestCheckNoResourceAttr(applicationResourceResource, "credentials.client_secret"),
+					resource.TestCheckNoResourceAttr(applicationResourceResource, "oauth_authorize_url"),
 				),
 			},
 		},
 	})
 }
 
-// acceptanceRichConfig is acceptanceConfig with more than one entry in each
+// applicationResourceRichConfig is applicationResourceConfig with more than one entry in each
 // array Slack treats as a set, so that reordering them shows.
-func acceptanceRichConfig(f *fakeSlack, name string) string {
+func applicationResourceRichConfig(f *fakeSlack, name string) string {
 	return fmt.Sprintf(`
 provider "slackapp" {
   base_url                = %q
@@ -245,10 +245,10 @@ resource "slackapp_application" "test" {
 `, f.baseURL(), name)
 }
 
-// acceptanceJSONConfig is an app whose manifest is written with jsonencode,
+// applicationResourceJSONConfig is an app whose manifest is written with jsonencode,
 // and carries outgoing_domains, which the slackapp_manifest data source does not
 // model.
-func acceptanceJSONConfig(f *fakeSlack, domain string) string {
+func applicationResourceJSONConfig(f *fakeSlack, domain string) string {
 	return fmt.Sprintf(`
 provider "slackapp" {
   base_url                = %q
@@ -271,13 +271,13 @@ resource "slackapp_application" "test" {
 `, f.baseURL(), domain)
 }
 
-// acceptanceCheckOutgoingDomains checks the outgoing_domains Slack holds for
+// applicationResourceCheckOutgoingDomains checks the outgoing_domains Slack holds for
 // the app in state.
-func acceptanceCheckOutgoingDomains(f *fakeSlack, want string) resource.TestCheckFunc {
+func applicationResourceCheckOutgoingDomains(f *fakeSlack, want string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[acceptanceResource]
+		rs, ok := s.RootModule().Resources[applicationResourceResource]
 		if !ok {
-			return fmt.Errorf("%s is not in state", acceptanceResource)
+			return fmt.Errorf("%s is not in state", applicationResourceResource)
 		}
 
 		raw, ok := f.manifest(rs.Primary.ID)
@@ -306,16 +306,16 @@ func TestAccApplication_rewrittenExport(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceRichConfig(f, "Example"),
-				Check:  acceptanceCheckName(f, "Example"),
+				Config: applicationResourceRichConfig(f, "Example"),
+				Check:  applicationResourceCheckName(f, "Example"),
 			},
 			{
-				Config: acceptanceRichConfig(f, "Renamed"),
-				Check:  acceptanceCheckName(f, "Renamed"),
+				Config: applicationResourceRichConfig(f, "Renamed"),
+				Check:  applicationResourceCheckName(f, "Renamed"),
 			},
 		},
 	})
@@ -327,24 +327,24 @@ func TestAccApplication_unmodeledField(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceJSONConfig(f, "a.example.com"),
-				Check:  acceptanceCheckOutgoingDomains(f, "a.example.com"),
+				Config: applicationResourceJSONConfig(f, "a.example.com"),
+				Check:  applicationResourceCheckOutgoingDomains(f, "a.example.com"),
 			},
 			{
-				Config: acceptanceJSONConfig(f, "b.example.com"),
-				Check:  acceptanceCheckOutgoingDomains(f, "b.example.com"),
+				Config: applicationResourceJSONConfig(f, "b.example.com"),
+				Check:  applicationResourceCheckOutgoingDomains(f, "b.example.com"),
 			},
 		},
 	})
 }
 
-// acceptanceDescriptionConfig is an app whose manifest is written with
+// applicationResourceDescriptionConfig is an app whose manifest is written with
 // jsonencode, with or without a description.
-func acceptanceDescriptionConfig(f *fakeSlack, description string) string {
+func applicationResourceDescriptionConfig(f *fakeSlack, description string) string {
 	displayInformation := `{ name = "Example" }`
 	if description != "" {
 		displayInformation = fmt.Sprintf(`{ name = "Example", description = %q }`, description)
@@ -367,13 +367,13 @@ resource "slackapp_application" "test" {
 `, f.baseURL(), displayInformation)
 }
 
-// acceptanceCheckDescription checks the description Slack holds for the app
+// applicationResourceCheckDescription checks the description Slack holds for the app
 // in state, where "" means none.
-func acceptanceCheckDescription(f *fakeSlack, want string) resource.TestCheckFunc {
+func applicationResourceCheckDescription(f *fakeSlack, want string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[acceptanceResource]
+		rs, ok := s.RootModule().Resources[applicationResourceResource]
 		if !ok {
-			return fmt.Errorf("%s is not in state", acceptanceResource)
+			return fmt.Errorf("%s is not in state", applicationResourceResource)
 		}
 
 		raw, ok := f.manifest(rs.Primary.ID)
@@ -408,16 +408,16 @@ func TestAccApplication_removedField(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceDescriptionConfig(f, "Old"),
-				Check:  acceptanceCheckDescription(f, "Old"),
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+				Check:  applicationResourceCheckDescription(f, "Old"),
 			},
 			{
-				Config: acceptanceDescriptionConfig(f, ""),
-				Check:  acceptanceCheckDescription(f, ""),
+				Config: applicationResourceDescriptionConfig(f, ""),
+				Check:  applicationResourceCheckDescription(f, ""),
 			},
 		},
 	})
@@ -430,11 +430,11 @@ func TestAccApplication_driftInSlack(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceDescriptionConfig(f, "Old"),
+				Config: applicationResourceDescriptionConfig(f, "Old"),
 			},
 			{
 				PreConfig: func() {
@@ -446,13 +446,13 @@ func TestAccApplication_driftInSlack(t *testing.T) {
 						displayInformation["description"] = "Edited in Slack"
 					})
 				},
-				Config:             acceptanceDescriptionConfig(f, "Old"),
+				Config:             applicationResourceDescriptionConfig(f, "Old"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
-				Config: acceptanceDescriptionConfig(f, "Old"),
-				Check:  acceptanceCheckDescription(f, "Old"),
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+				Check:  applicationResourceCheckDescription(f, "Old"),
 			},
 		},
 	})
@@ -466,14 +466,14 @@ func TestAccApplication_importRewritten(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acceptanceProviderFactories,
-		CheckDestroy:             acceptanceCheckDestroyed(f),
+		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
-				Config: acceptanceRichConfig(f, "Example"),
+				Config: applicationResourceRichConfig(f, "Example"),
 			},
 			{
-				Config: acceptanceBaseConfig(f, "Example") + `
+				Config: applicationResourceBaseConfig(f, "Example") + `
 removed {
   from = slackapp_application.test
 
@@ -484,13 +484,13 @@ removed {
 `,
 			},
 			{
-				Config: acceptanceRichConfig(f, "Example") + fmt.Sprintf(`
+				Config: applicationResourceRichConfig(f, "Example") + fmt.Sprintf(`
 import {
   to = slackapp_application.test
   id = %q
 }
 `, appID),
-				Check: acceptanceCheckName(f, "Example"),
+				Check: applicationResourceCheckName(f, "Example"),
 			},
 		},
 	})
