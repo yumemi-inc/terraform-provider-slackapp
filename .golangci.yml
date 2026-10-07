@@ -9,6 +9,7 @@ linters:
   # exportloopref and tenv from the v1 config are gone: Go 1.22 made loop
   # variables per-iteration, and usetesting replaces tenv.
   enable:
+    - depguard
     - durationcheck
     - errcheck
     - forcetypeassert
@@ -24,6 +25,32 @@ linters:
     - unparam
     - unused
     - usetesting
+  settings:
+    # Keep the layers apart. internal/slack and internal/manifest know nothing
+    # of the plugin framework or of internal/provider; only terraform-plugin-log
+    # is allowed there, so that the Slack client's requests show in TF_LOG. Of
+    # internal/provider, only the package itself talks to Slack.
+    depguard:
+      rules:
+        framework-free:
+          list-mode: lax
+          files:
+            - "**/internal/slack/*.go"
+            - "**/internal/manifest/*.go"
+          allow:
+            - github.com/hashicorp/terraform-plugin-log
+          deny:
+            - pkg: github.com/hashicorp/terraform-plugin
+              desc: internal/slack and internal/manifest know nothing of the plugin framework; adapt them in internal/provider
+            - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/provider
+              desc: internal/provider builds on internal/slack and internal/manifest, not the other way round
+        provider-subpackages-offline:
+          list-mode: lax
+          files:
+            - "**/internal/provider/*/*.go"
+          deny:
+            - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/slack
+              desc: only internal/provider itself talks to Slack; its subpackages build Terraform pieces
   exclusions:
     generated: lax
     presets:
