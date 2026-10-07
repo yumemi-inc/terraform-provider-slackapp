@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -63,6 +63,8 @@ func (c *Client) createRequest(
 	if err != nil {
 		return nil, err
 	}
+
+	tflog.Debug(ctx, "Calling a Slack API method", map[string]any{"method": methodName})
 
 	if c.appConfigurationToken != nil {
 		httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
@@ -122,7 +124,10 @@ func (c *Client) refreshAppConfigurationToken(ctx context.Context) error {
 		return err
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("%+v", response))
+	// Only the expiry: the tokens themselves must never reach the log.
+	tflog.Debug(ctx, "Rotated the app configuration token", map[string]any{
+		"expires_at": response.ExpiresAt.Time().UTC().Format(time.RFC3339),
+	})
 
 	c.appConfigurationToken = &response.Token
 	c.refreshToken = &response.RefreshToken

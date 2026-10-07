@@ -1,6 +1,7 @@
 package slack_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
@@ -449,5 +452,137 @@ func TestClientInvalidBaseURL(t *testing.T) {
 	}
 	if _, err := c.ToolingTokensRotate(ctx, "refresh"); err == nil {
 		t.Error("rotate succeeded with an invalid base URL")
+	}
+}
+
+// clientLogSecrets are the secret values the log tests feed the client. None
+// of them may reach the log.
+var clientLogSecrets = map[string]string{
+	"app configuration token":         "xoxe.xoxp-1-configtoken",
+	"refresh token passed in":         "xoxe-1-firstrefresh",
+	"rotated app configuration token": "xoxe.xoxp-1-rotatedtoken",
+	"rotated refresh token":           "xoxe-1-rotatedrefresh",
+	"client secret":                   "clientsecretvalue",
+	"signing secret":                  "signingsecretvalue",
+	"verification token":              "verificationtokenvalue",
+}
+
+// clientLogServer answers every method with replies that carry the secrets
+// in clientLogSecrets.
+func clientLogServer(t *testing.T) *clientServer {
+	t.Helper()
+
+	return newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"` + clientLogSecrets["rotated app configuration token"] +
+			`","refresh_token":"` + clientLogSecrets["rotated refresh token"] + `","iat":1700000000,"exp":1700043200}`,
+		"apps.manifest.create": `{"ok":true,"app_id":"A1","credentials":{"client_id":"cid",` +
+			`"client_secret":"` + clientLogSecrets["client secret"] +
+			`","verification_token":"` + clientLogSecrets["verification token"] +
+			`","signing_secret":"` + clientLogSecrets["signing secret"] +
+			`"},"oauth_authorize_url":"https://slack.com/oauth"}`,
+		"apps.manifest.update": `{"ok":false,"error":"invalid_manifest","errors":[{"message":"PKCE cannot be disabled once enabled","pointer":"/oauth_config/pkce_enabled"}]}`,
+		"apps.manifest.export": `{"ok":true,"manifest":{}}`,
+		"apps.manifest.delete": `{"ok":true}`,
+	})
+}
+
+// clientLogDrive calls every method, through a client that rotates its
+// refresh token and through one given a token, and returns what they logged.
+func clientLogDrive(t *testing.T) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	ctx := tflogtest.RootLogger(t.Context(), &buf)
+	s := clientLogServer(t)
+
+	clients := []*slack.Client{
+		slack.NewClientFromRefreshToken(clientLogSecrets["refresh token passed in"]).WithBaseURL(s.URL + "/"),
+		s.client(clientLogSecrets["app configuration token"]),
+	}
+	for _, c := range clients {
+		if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{Manifest: `{}`}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.AppsManifestUpdate(ctx, slack.AppsManifestUpdateRequest{AppID: "A1", Manifest: `{}`}); err == nil {
+			t.Fatal("update succeeded, want invalid_manifest")
+		}
+		if _, err := c.AppsManifestExport(ctx, slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.AppsManifestDelete(ctx, slack.AppsManifestDeleteRequest{AppID: "A1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return buf.String()
+}
+
+// TestClientLogsNoSecrets is the test for #37: with TF_LOG=DEBUG, Terraform
+// writes the provider's log to wherever TF_LOG_PATH or CI keeps it.
+func TestClientLogsNoSecrets(t *testing.T) {
+	t.Parallel()
+
+	logs := clientLogDrive(t)
+	if logs == "" {
+		t.Fatal("the client logged nothing")
+	}
+
+	for name, secret := range clientLogSecrets {
+		if strings.Contains(logs, secret) {
+			t.Errorf("the log contains the %s", name)
+		}
+	}
+	if t.Failed() {
+		t.Log(logs)
+	}
+}
+
+// TestClientLogsWhatHappened checks that the log still says which methods
+// ran, that the token was rotated, when it expires, and what Slack refused.
+func TestClientLogsWhatHappened(t *testing.T) {
+	t.Parallel()
+
+	entries, err := tflogtest.MultilineJSONDecode(strings.NewReader(clientLogDrive(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	has := func(fields map[string]any) bool {
+		for _, entry := range entries {
+			matched := true
+			for key, want := range fields {
+				if entry[key] != want {
+					matched = false
+
+					break
+				}
+			}
+			if matched {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	wants := []map[string]any{
+		{"@level": "debug", "@message": "Calling a Slack API method", "method": "tooling.tokens.rotate"},
+		{"@message": "Slack API method succeeded", "method": "tooling.tokens.rotate", "expires_at": "2023-11-15T10:13:20Z"},
+		{"@message": "Rotated the app configuration token", "expires_at": "2023-11-15T10:13:20Z"},
+		{"@message": "Calling a Slack API method", "method": "apps.manifest.create"},
+		{"@message": "Slack API method succeeded", "method": "apps.manifest.create", "app_id": "A1"},
+		{"@message": "Slack API method returned an error", "method": "apps.manifest.update", "error": "invalid_manifest"},
+		{"@message": "Slack API method succeeded", "method": "apps.manifest.export"},
+		{"@message": "Slack API method succeeded", "method": "apps.manifest.delete"},
+	}
+	for _, want := range wants {
+		if !has(want) {
+			t.Errorf("no log entry has %v", want)
+		}
+	}
+	if t.Failed() {
+		for _, entry := range entries {
+			t.Log(entry)
+		}
 	}
 }
