@@ -9,6 +9,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
 // These tests drive the provider through the real Terraform CLI, against
@@ -574,14 +576,55 @@ func TestAccApplication_refreshFails(t *testing.T) {
 			},
 			{
 				PreConfig: func() {
-					f.failWith("apps.manifest.export", map[string]any{"ok": false, "error": "app_not_found"})
+					f.failWith("apps.manifest.export", map[string]any{"ok": false, "error": "internal_error"})
+				},
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				ExpectError: regexp.MustCompile(`internal_error`),
+			},
+			{
+				PreConfig: func() { f.succeed("apps.manifest.export") },
+				Config:    applicationResourceDescriptionConfig(f, "Old"),
+			},
+		},
+	})
+}
+
+// An app deleted in Slack, outside Terraform, makes refresh fail.
+//
+// FIXME(#39): refresh should remove the app from state on app_not_found, so
+// that the plan proposes to create it again. Until then the only way out is
+// terraform state rm, which the last step stands for.
+func TestAccApplication_deletedInSlack(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					if _, err := applicationResourceSlackClient(f).AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: fakeSlackAppID(1)}); err != nil {
+						t.Fatal(err)
+					}
 				},
 				Config:      applicationResourceDescriptionConfig(f, "Old"),
 				ExpectError: regexp.MustCompile(`app_not_found`),
 			},
 			{
-				PreConfig: func() { f.succeed("apps.manifest.export") },
-				Config:    applicationResourceDescriptionConfig(f, "Old"),
+				// Standing in for terraform state rm, so the post-test
+				// destroy has nothing left to delete.
+				Config: applicationResourceBaseProviderOnly(f) + `
+removed {
+  from = slackapp_application.test
+
+  lifecycle {
+    destroy = false
+  }
+}
+`,
 			},
 		},
 	})
@@ -709,4 +752,21 @@ resource "slackapp_application" "test" {
 			},
 		},
 	})
+}
+
+// applicationResourceBaseProviderOnly is the provider block alone, pointed
+// at the fake.
+func applicationResourceBaseProviderOnly(f *fakeSlack) string {
+	return fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+`, f.baseURL())
+}
+
+// applicationResourceSlackClient is a Slack client pointed at the fake, for a test
+// to change Slack the way someone outside Terraform would.
+func applicationResourceSlackClient(f *fakeSlack) *slack.Client {
+	return slack.NewClient("test").WithBaseURL(f.baseURL())
 }
