@@ -1,6 +1,7 @@
 # Terraform Provider for Slack Apps
 
 [![CI](https://github.com/ymm-oss/terraform-provider-slackapp/actions/workflows/ci.yml/badge.svg)](https://github.com/ymm-oss/terraform-provider-slackapp/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/ymm-oss/terraform-provider-slackapp/graph/badge.svg)](https://codecov.io/gh/ymm-oss/terraform-provider-slackapp)
 
 > [!NOTE]
 > This provider was published as `yumemi-inc/slackapp` up to v0.2.9. Later releases are [ymm-oss/slackapp](https://registry.terraform.io/providers/ymm-oss/slackapp).
@@ -71,6 +72,7 @@ Every tool is pinned in [`mise.toml`](mise.toml). Run `mise install` once, then:
 | Command | What it does |
 | --- | --- |
 | `mise run build` | Build the provider binary |
+| `mise run coverage` | Run the tests and report statement coverage per package |
 | `mise run test` | Run the unit tests, and the acceptance tests that drive the provider through Terraform against a fake Slack API |
 | `mise run lint` | Run golangci-lint (linters and formatters) and [declscope](https://github.com/mpyw/declscope) |
 | `mise run fix` | Apply the fixes that golangci-lint and declscope suggest |

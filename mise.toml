@@ -19,6 +19,10 @@ run = "go build ."
 description = "Run the unit tests"
 run = "go test -race ./..."
 
+[tasks.coverage]
+description = "Run the tests and report statement coverage per package"
+run = "./coverage.sh"
+
 # declscope shrink goes before the analyzer: a declaration it unexports
 # becomes private to its file, and only the analyzer reports a use of it from
 # another file. Running them in this order converges in one pass.
