@@ -174,7 +174,20 @@ func (r *applicationResource) Read(ctx context.Context, request resource.ReadReq
 	if slack.IsAppNotFoundError(err) {
 		// Deleted outside Terraform. Leaving state makes the plan create it
 		// again, with a new ID and new credentials.
+		//
+		// Slack also answers app_not_found when the token cannot see the
+		// app, such as a token for another workspace. The plan would then
+		// create a second app, so this is a warning the plan shows, not
+		// only a log line.
 		tflog.Warn(ctx, "The Slack app no longer exists, removing it from state", map[string]any{"app_id": data.ID.ValueString()})
+		response.Diagnostics.AddWarning(
+			"The Slack app was not found, so it was removed from state",
+			fmt.Sprintf(
+				"Slack answered app_not_found for %s, so the plan creates the app again, with a new app ID and new credentials. "+
+					"If the app still exists, check that the app configuration token is for the workspace that owns it.",
+				data.ID.ValueString(),
+			),
+		)
 		response.State.RemoveResource(ctx)
 
 		return
