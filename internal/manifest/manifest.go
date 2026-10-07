@@ -1,10 +1,17 @@
-// Package manifest models the parts of a Slack app manifest that the
-// slackapp_manifest data source can build, and encodes them to the JSON the
-// data source outputs.
+// Package manifest is what this provider knows about Slack app manifests,
+// apart from Terraform:
 //
-// It models only part of the manifest, so nothing reads a manifest back
-// through it: slackapp_application keeps the JSON Slack returns as is, and
-// internal/manifesttype compares manifests as generic JSON.
+//   - App and the types under it model the parts of a manifest that the
+//     slackapp_manifest data source builds, and encode them to its JSON.
+//   - Equal compares two manifests by meaning.
+//   - PruneToPrior drops, from a manifest Slack exported, the defaults Slack
+//     filled in.
+//
+// App models only part of a manifest, so Equal and PruneToPrior never decode
+// into it: they work on generic JSON, so that fields App does not model
+// still take part. slackapp_application keeps the JSON Slack returns as is.
+//
+//declscope:core // App and its types are the package's model, named after the manifest's own sections
 package manifest
 
 import (

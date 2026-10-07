@@ -1,4 +1,4 @@
-package typeconv
+package manifestblocks
 
 import (
 	"fmt"
@@ -6,7 +6,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func MustStringSetAsArray(setValue *types.Set) []string {
+//declscope:shared // the block files read their string sets with it
+func mustStringSetAsArray(setValue *types.Set) []string {
 	elements := setValue.Elements()
 	strings := make([]string, 0, len(elements))
 	for _, element := range elements {

@@ -1,4 +1,7 @@
-package myvalidator
+// Package validators checks the limits Slack puts on an app manifest, such as
+// how many slash commands it may have, as terraform-plugin-framework
+// validators.
+package validators
 
 import (
 	"context"

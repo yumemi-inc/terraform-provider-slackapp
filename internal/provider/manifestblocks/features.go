@@ -1,4 +1,6 @@
-package slackappmanifest
+//declscope:ignore qualify // each type is named after the manifest type it reads into (AppHome -> manifest.AppHome); a name carrying this file's namespace would add nothing and break the match
+
+package manifestblocks
 
 import (
 	"regexp"
@@ -12,8 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/myvalidator"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/validators"
 )
 
 type AppHome struct {
@@ -130,7 +131,7 @@ func (*Shortcut) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			myvalidator.MessageShortcutCount(),
+			validators.MessageShortcutCount(),
 		},
 	}
 }
@@ -190,7 +191,7 @@ func (*SlashCommand) schema() *schema.ListNestedBlock {
 			},
 		},
 		Validators: []validator.List{
-			myvalidator.CommandCount(),
+			validators.CommandCount(),
 		},
 	}
 }
@@ -278,11 +279,11 @@ func (*Features) Schema() *schema.SingleNestedBlock {
 
 func (f Features) Read() manifest.Features {
 	return manifest.Features{
-		AppHome:       typeconv.MapOptionModel[manifest.AppHome](f.AppHome),
-		BotUser:       typeconv.MapOptionModel[manifest.BotUser](f.BotUser),
-		Shortcuts:     typeconv.MapListModel[manifest.Shortcut](f.Shortcuts),
-		SlashCommands: typeconv.MapListModel[manifest.SlashCommand](f.SlashCommands),
-		UnfurlDomains: typeconv.MustStringSetAsArray(&f.UnfurlDomains),
-		WorkflowSteps: typeconv.MapListModel[manifest.WorkflowStep](f.WorkflowSteps),
+		AppHome:       MapOptionModel[manifest.AppHome](f.AppHome),
+		BotUser:       MapOptionModel[manifest.BotUser](f.BotUser),
+		Shortcuts:     mapListModel[manifest.Shortcut](f.Shortcuts),
+		SlashCommands: mapListModel[manifest.SlashCommand](f.SlashCommands),
+		UnfurlDomains: mustStringSetAsArray(&f.UnfurlDomains),
+		WorkflowSteps: mapListModel[manifest.WorkflowStep](f.WorkflowSteps),
 	}
 }

@@ -1,4 +1,6 @@
-package slackappmanifest
+//declscope:ignore qualify // each type is named after the manifest type it reads into (AppHome -> manifest.AppHome); a name carrying this file's namespace would add nothing and break the match
+
+package manifestblocks
 
 import (
 	"regexp"
@@ -12,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 
 type EventSubscriptions struct {
@@ -52,8 +53,8 @@ func (*EventSubscriptions) schema() *schema.SingleNestedBlock {
 func (s EventSubscriptions) Read() manifest.EventSubscriptions {
 	return manifest.EventSubscriptions{
 		RequestURL: s.RequestURL.ValueStringPointer(),
-		BotEvents:  typeconv.MustStringSetAsArray(&s.BotEvents),
-		UserEvents: typeconv.MustStringSetAsArray(&s.UserEvents),
+		BotEvents:  mustStringSetAsArray(&s.BotEvents),
+		UserEvents: mustStringSetAsArray(&s.UserEvents),
 	}
 }
 
@@ -147,9 +148,9 @@ func (*Settings) Schema() *schema.SingleNestedBlock {
 
 func (s Settings) Read() manifest.Settings {
 	return manifest.Settings{
-		AllowedIPAddressRanges: typeconv.MustStringSetAsArray(&s.AllowedIPAddressRanges),
-		EventSubscriptions:     typeconv.MapOptionModel[manifest.EventSubscriptions](s.EventSubscriptions),
-		Interactivity:          typeconv.MapOptionModel[manifest.Interactivity](s.Interactivity),
+		AllowedIPAddressRanges: mustStringSetAsArray(&s.AllowedIPAddressRanges),
+		EventSubscriptions:     MapOptionModel[manifest.EventSubscriptions](s.EventSubscriptions),
+		Interactivity:          MapOptionModel[manifest.Interactivity](s.Interactivity),
 		OrgDeployEnabled:       s.OrgDeployEnabled.ValueBoolPointer(),
 		SocketModeEnabled:      s.SocketModeEnabled.ValueBoolPointer(),
 		TokenRotationEnabled:   s.TokenRotationEnabled.ValueBoolPointer(),

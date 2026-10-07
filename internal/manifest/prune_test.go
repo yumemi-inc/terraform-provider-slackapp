@@ -1,4 +1,4 @@
-package manifesttype
+package manifest
 
 import "testing"
 
@@ -58,7 +58,7 @@ func TestPruneToPrior(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			equal, err := manifestsEqual(got, tc.want)
+			equal, err := Equal(got, tc.want)
 			if err != nil {
 				t.Fatal(err)
 			}

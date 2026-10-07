@@ -1,5 +1,6 @@
-// Package planmods provides plan modifiers for the slackapp_application
-// computed attributes.
+// Package planmodifiers holds slackapp_application's plan modifiers:
+// SuppressEquivalentManifest for the manifest attribute, and KeepPrior* for
+// the computed attributes.
 //
 // The Slack apps.manifest.export API never returns an app's credentials or OAuth
 // authorize URL, so a resource brought under management with `import` has those
@@ -12,7 +13,7 @@
 // KeepPrior* keeps the prior state value for an *existing* resource even when it
 // is null, and only falls back to unknown-on-create (letting Create populate it)
 // when the whole prior state is null.
-package planmods
+package planmodifiers
 
 import (
 	"context"
@@ -23,20 +24,20 @@ import (
 // KeepPriorString keeps the prior state value for a computed string attribute of
 // an existing resource, including when that value is null.
 func KeepPriorString() planmodifier.String {
-	return keepPriorString{}
+	return keepPriorStringModifier{}
 }
 
-type keepPriorString struct{}
+type keepPriorStringModifier struct{}
 
-func (keepPriorString) Description(_ context.Context) string {
+func (keepPriorStringModifier) Description(_ context.Context) string {
 	return "Keep the prior state value on update, even when it is null (imported resources)."
 }
 
-func (m keepPriorString) MarkdownDescription(ctx context.Context) string {
+func (m keepPriorStringModifier) MarkdownDescription(ctx context.Context) string {
 	return m.Description(ctx)
 }
 
-func (keepPriorString) PlanModifyString(
+func (keepPriorStringModifier) PlanModifyString(
 	_ context.Context,
 	req planmodifier.StringRequest,
 	resp *planmodifier.StringResponse,
@@ -59,20 +60,20 @@ func (keepPriorString) PlanModifyString(
 // KeepPriorObject keeps the prior state value for a computed object attribute of
 // an existing resource, including when that value is null.
 func KeepPriorObject() planmodifier.Object {
-	return keepPriorObject{}
+	return keepPriorObjectModifier{}
 }
 
-type keepPriorObject struct{}
+type keepPriorObjectModifier struct{}
 
-func (keepPriorObject) Description(_ context.Context) string {
+func (keepPriorObjectModifier) Description(_ context.Context) string {
 	return "Keep the prior state value on update, even when it is null (imported resources)."
 }
 
-func (m keepPriorObject) MarkdownDescription(ctx context.Context) string {
+func (m keepPriorObjectModifier) MarkdownDescription(ctx context.Context) string {
 	return m.Description(ctx)
 }
 
-func (keepPriorObject) PlanModifyObject(
+func (keepPriorObjectModifier) PlanModifyObject(
 	_ context.Context,
 	req planmodifier.ObjectRequest,
 	resp *planmodifier.ObjectResponse,

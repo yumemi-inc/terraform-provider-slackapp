@@ -1,9 +1,11 @@
-package manifesttype
+package planmodifiers
 
 import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
 )
 
 // SuppressEquivalentManifest returns a plan modifier that keeps the prior state
@@ -46,7 +48,7 @@ func (m suppressEquivalentManifest) PlanModifyString(
 		return
 	}
 
-	equal, err := manifestsEqual(req.StateValue.ValueString(), req.ConfigValue.ValueString())
+	equal, err := manifest.Equal(req.StateValue.ValueString(), req.ConfigValue.ValueString())
 	if err != nil {
 		// Unparseable JSON: fall back to the default plan (show the change).
 		return

@@ -1,4 +1,4 @@
-package myvalidator
+package validators
 
 import (
 	"context"

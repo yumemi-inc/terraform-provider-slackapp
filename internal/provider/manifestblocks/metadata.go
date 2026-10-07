@@ -1,11 +1,10 @@
-package slackappmanifest
+package manifestblocks
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 
 type Metadata struct {
@@ -31,7 +30,7 @@ func (*Metadata) Schema() *schema.SingleNestedBlock {
 
 func (m Metadata) Read() manifest.Metadata {
 	return manifest.Metadata{
-		MajorVersion: typeconv.Int64PtrAsIntPtr(m.MajorVersion.ValueInt64Pointer()),
-		MinorVersion: typeconv.Int64PtrAsIntPtr(m.MinorVersion.ValueInt64Pointer()),
+		MajorVersion: int64PtrAsIntPtr(m.MajorVersion.ValueInt64Pointer()),
+		MinorVersion: int64PtrAsIntPtr(m.MinorVersion.ValueInt64Pointer()),
 	}
 }

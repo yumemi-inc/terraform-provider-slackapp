@@ -1,4 +1,4 @@
-package slackappmanifest
+package manifestblocks
 
 import (
 	"regexp"

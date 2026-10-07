@@ -1,4 +1,4 @@
-package manifesttype
+package planmodifiers
 
 import (
 	"context"

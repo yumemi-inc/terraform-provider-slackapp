@@ -1,13 +1,10 @@
-package manifesttype
+package manifest
 
 import (
-	"context"
 	"testing"
-
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-func TestStringSemanticEquals(t *testing.T) {
+func TestEqual(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
@@ -95,51 +92,28 @@ func TestStringSemanticEquals(t *testing.T) {
 			next:  `{"display_information":{"name":"A"},"features":{"slash_commands":[{"command":"/b","description":"b"},{"command":"/a","description":"a"}]}}`,
 			want:  false,
 		},
-		"invalid prior json falls back to string compare (unequal)": {
-			prior: `not json`,
-			next:  `{"display_information":{"name":"A"}}`,
-			want:  false,
-		},
-		"invalid json identical strings are equal": {
-			prior: `not json`,
-			next:  `not json`,
-			want:  true,
-		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			prior := NewManifestValue(tc.prior)
-			next := NewManifestValue(tc.next)
-
-			got, diags := prior.StringSemanticEquals(context.Background(), next)
-			if diags.HasError() {
-				t.Fatalf("unexpected diagnostics: %v", diags)
+			got, err := Equal(tc.prior, tc.next)
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			if got != tc.want {
-				t.Fatalf("StringSemanticEquals(%q, %q) = %v, want %v", tc.prior, tc.next, got, tc.want)
+				t.Fatalf("Equal(%q, %q) = %v, want %v", tc.prior, tc.next, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestStringSemanticEqualsNullUnknown(t *testing.T) {
+func TestEqualInvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	known := NewManifestValue(`{"display_information":{"name":"A"}}`)
-	null := Manifest{StringValue: basetypes.NewStringNull()}
-	unknown := Manifest{StringValue: basetypes.NewStringUnknown()}
-
-	if eq, _ := known.StringSemanticEquals(context.Background(), null); eq {
-		t.Fatal("known vs null should not be equal")
-	}
-	if eq, _ := null.StringSemanticEquals(context.Background(), null); !eq {
-		t.Fatal("null vs null should be equal")
-	}
-	if eq, _ := unknown.StringSemanticEquals(context.Background(), unknown); !eq {
-		t.Fatal("unknown vs unknown should be equal")
+	if _, err := Equal(`not json`, `{}`); err == nil {
+		t.Error("Equal accepted an invalid manifest")
 	}
 }

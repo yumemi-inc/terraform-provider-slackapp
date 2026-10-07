@@ -1,4 +1,6 @@
-package slackappmanifest
+//declscope:ignore qualify // each type is named after the manifest type it reads into (AppHome -> manifest.AppHome); a name carrying this file's namespace would add nothing and break the match
+
+package manifestblocks
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -7,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 
 type Scopes struct {
@@ -41,8 +42,8 @@ func (*Scopes) schema() *schema.SingleNestedBlock {
 
 func (s Scopes) Read() manifest.Scopes {
 	return manifest.Scopes{
-		Bot:  typeconv.MustStringSetAsArray(&s.Bot),
-		User: typeconv.MustStringSetAsArray(&s.User),
+		Bot:  mustStringSetAsArray(&s.Bot),
+		User: mustStringSetAsArray(&s.User),
 	}
 }
 
@@ -75,7 +76,7 @@ func (*OauthConfig) Schema() *schema.SingleNestedBlock {
 
 func (c OauthConfig) Read() manifest.OauthConfig {
 	return manifest.OauthConfig{
-		RedirectURLs: typeconv.MustStringSetAsArray(&c.RedirectURLs),
-		Scopes:       typeconv.MapOptionModel[manifest.Scopes](c.Scopes),
+		RedirectURLs: mustStringSetAsArray(&c.RedirectURLs),
+		Scopes:       MapOptionModel[manifest.Scopes](c.Scopes),
 	}
 }

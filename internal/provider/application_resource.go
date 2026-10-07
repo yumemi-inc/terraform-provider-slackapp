@@ -1,8 +1,9 @@
-package resources
+package provider
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -14,13 +15,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifesttype"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/planmods"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/manifesttype"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/planmodifiers"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
-type SlackAppModel struct {
+type applicationResourceModel struct {
 	// Arguments
 	Manifest manifesttype.Manifest `tfsdk:"manifest"`
 
@@ -30,15 +31,16 @@ type SlackAppModel struct {
 	OauthAuthorizeURL types.String `tfsdk:"oauth_authorize_url"`
 }
 
-type SlackApp struct {
-	ctx *common.ProviderContext
+type applicationResource struct {
+	client *slack.Client
 }
 
-func NewSlackApp() resource.Resource {
-	return &SlackApp{}
+//declscope:shared // provider.go registers it
+func newApplicationResource() resource.Resource {
+	return &applicationResource{}
 }
 
-func (r *SlackApp) Metadata(
+func (r *applicationResource) Metadata(
 	_ context.Context,
 	_ resource.MetadataRequest,
 	response *resource.MetadataResponse,
@@ -46,7 +48,7 @@ func (r *SlackApp) Metadata(
 	response.TypeName = "slackapp_application"
 }
 
-func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
+func (r *applicationResource) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			// Arguments
@@ -55,7 +57,7 @@ func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response 
 				Required:            true,
 				CustomType:          manifesttype.ManifestType{},
 				PlanModifiers: []planmodifier.String{
-					manifesttype.SuppressEquivalentManifest(),
+					planmodifiers.SuppressEquivalentManifest(),
 				},
 			},
 
@@ -78,21 +80,21 @@ func (r *SlackApp) Schema(_ context.Context, _ resource.SchemaRequest, response 
 					"signing_secret":     types.StringType,
 				},
 				PlanModifiers: []planmodifier.Object{
-					planmods.KeepPriorObject(),
+					planmodifiers.KeepPriorObject(),
 				},
 			},
 			"oauth_authorize_url": &schema.StringAttribute{
 				MarkdownDescription: "URL of the OAuth 2 authorization endpoint.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					planmods.KeepPriorString(),
+					planmodifiers.KeepPriorString(),
 				},
 			},
 		},
 	}
 }
 
-func (r *SlackApp) Configure(
+func (r *applicationResource) Configure(
 	_ context.Context,
 	request resource.ConfigureRequest,
 	response *resource.ConfigureResponse,
@@ -101,21 +103,21 @@ func (r *SlackApp) Configure(
 		return
 	}
 
-	providerContext, ok := request.ProviderData.(*common.ProviderContext)
+	client, ok := request.ProviderData.(*slack.Client)
 	if !ok {
 		response.Diagnostics.AddError(
-			"The ctx did not configured properly.",
-			"request.ProviderData.(type) != *ctx.ConfiguredProvider",
+			"The provider is not configured properly.",
+			fmt.Sprintf("request.ProviderData is %T, not *slack.Client", request.ProviderData),
 		)
 
 		return
 	}
 
-	r.ctx = providerContext
+	r.client = client
 }
 
-func (r *SlackApp) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
-	var data SlackAppModel
+func (r *applicationResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
+	var data applicationResourceModel
 
 	response.Diagnostics.Append(request.Plan.Get(ctx, &data)...)
 
@@ -123,7 +125,7 @@ func (r *SlackApp) Create(ctx context.Context, request resource.CreateRequest, r
 		return
 	}
 
-	apiResponse, err := r.ctx.SlackClient.AppsManifestCreate(
+	apiResponse, err := r.client.AppsManifestCreate(
 		ctx, slack.AppsManifestCreateRequest{
 			Manifest: data.Manifest.ValueString(),
 		},
@@ -154,8 +156,8 @@ func (r *SlackApp) Create(ctx context.Context, request resource.CreateRequest, r
 	response.Diagnostics.Append(response.State.Set(ctx, &data)...)
 }
 
-func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, response *resource.ReadResponse) {
-	var data SlackAppModel
+func (r *applicationResource) Read(ctx context.Context, request resource.ReadRequest, response *resource.ReadResponse) {
+	var data applicationResourceModel
 
 	response.Diagnostics.Append(request.State.Get(ctx, &data)...)
 
@@ -163,7 +165,7 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 		return
 	}
 
-	apiResponse, err := r.ctx.SlackClient.AppsManifestExport(
+	apiResponse, err := r.client.AppsManifestExport(
 		ctx, slack.AppsManifestExportRequest{
 			AppID: data.ID.ValueString(),
 		},
@@ -219,7 +221,7 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 	// fields the manifest in state has, so those defaults do not show as
 	// drift. On import there is no manifest in state, and all of it is kept.
 	if hasLocalManifest {
-		pruned, err := manifesttype.PruneToPrior(string(manifestJSON), data.Manifest.ValueString())
+		pruned, err := manifest.PruneToPrior(string(manifestJSON), data.Manifest.ValueString())
 		if err != nil {
 			response.Diagnostics.AddError("Failed to compare the exported manifest with the one in state.", err.Error())
 
@@ -234,8 +236,8 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 	response.Diagnostics.Append(response.State.Set(ctx, &data)...)
 }
 
-func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
-	var before, after SlackAppModel
+func (r *applicationResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
+	var before, after applicationResourceModel
 
 	response.Diagnostics.Append(request.State.Get(ctx, &before)...)
 	response.Diagnostics.Append(request.Plan.Get(ctx, &after)...)
@@ -244,7 +246,7 @@ func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, r
 		return
 	}
 
-	_, err := r.ctx.SlackClient.AppsManifestUpdate(
+	_, err := r.client.AppsManifestUpdate(
 		ctx, slack.AppsManifestUpdateRequest{
 			AppID:    after.ID.ValueString(),
 			Manifest: after.Manifest.ValueString(),
@@ -262,8 +264,8 @@ func (r *SlackApp) Update(ctx context.Context, request resource.UpdateRequest, r
 	response.Diagnostics.Append(response.State.Set(ctx, &after)...)
 }
 
-func (r *SlackApp) Delete(ctx context.Context, request resource.DeleteRequest, response *resource.DeleteResponse) {
-	var data SlackAppModel
+func (r *applicationResource) Delete(ctx context.Context, request resource.DeleteRequest, response *resource.DeleteResponse) {
+	var data applicationResourceModel
 
 	response.Diagnostics.Append(request.State.Get(ctx, &data)...)
 
@@ -271,7 +273,7 @@ func (r *SlackApp) Delete(ctx context.Context, request resource.DeleteRequest, r
 		return
 	}
 
-	_, err := r.ctx.SlackClient.AppsManifestDelete(
+	_, err := r.client.AppsManifestDelete(
 		ctx, slack.AppsManifestDeleteRequest{
 			AppID: data.ID.ValueString(),
 		},
@@ -283,7 +285,7 @@ func (r *SlackApp) Delete(ctx context.Context, request resource.DeleteRequest, r
 	}
 }
 
-func (r *SlackApp) ImportState(
+func (r *applicationResource) ImportState(
 	ctx context.Context,
 	request resource.ImportStateRequest,
 	response *resource.ImportStateResponse,
@@ -291,7 +293,7 @@ func (r *SlackApp) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), request, response)
 }
 
-func (r *SlackApp) handleSlackErrorInDiag(diagnostics *diag.Diagnostics, err error) {
+func (r *applicationResource) handleSlackErrorInDiag(diagnostics *diag.Diagnostics, err error) {
 	slackErr, ok := err.(*slack.ErrorResponse)
 	if ok && len(slackErr.Errors) > 0 {
 		for _, e := range slackErr.Errors {
