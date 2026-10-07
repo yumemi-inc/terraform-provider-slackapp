@@ -496,7 +496,8 @@ import {
 }
 
 // When Slack lists what is wrong with a manifest, each item is shown as its
-// own error, under the message Slack gave.
+// own error, under the message Slack gave. The detail names the operation and
+// where in the manifest the item points.
 func TestAccApplication_createFailsWithErrors(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 	f.failWith("apps.manifest.create", map[string]any{
@@ -513,13 +514,14 @@ func TestAccApplication_createFailsWithErrors(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      applicationResourceDescriptionConfig(f, "Old"),
-				ExpectError: regexp.MustCompile(`Event subscription requires a request URL`),
+				ExpectError: regexp.MustCompile(`(?s)Error: Event subscription requires a request URL.*Failed to create the Slack app.*/settings/event_subscriptions`),
 			},
 		},
 	})
 }
 
-// Without a list, the error code Slack gave is shown.
+// Without a list, the summary names the operation, and the error code Slack
+// gave is shown.
 func TestAccApplication_createFails(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 	f.failWith("apps.manifest.create", map[string]any{"ok": false, "error": "ratelimited"})
@@ -530,14 +532,14 @@ func TestAccApplication_createFails(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      applicationResourceDescriptionConfig(f, "Old"),
-				ExpectError: regexp.MustCompile(`ratelimited`),
+				ExpectError: regexp.MustCompile(`(?s)Error: Failed to create the Slack app.*ratelimited`),
 			},
 		},
 	})
 }
 
 // A failed update leaves the app as it was, and the next apply sends the
-// change again.
+// change again. The error says that the update failed, not the create.
 func TestAccApplication_updateFails(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
@@ -553,7 +555,7 @@ func TestAccApplication_updateFails(t *testing.T) {
 					f.failWith("apps.manifest.update", map[string]any{"ok": false, "error": "invalid_manifest"})
 				},
 				Config:      applicationResourceDescriptionConfig(f, "New"),
-				ExpectError: regexp.MustCompile(`invalid_manifest`),
+				ExpectError: regexp.MustCompile(`(?s)Error: Failed to update the Slack app.*invalid_manifest`),
 			},
 			{
 				PreConfig: func() { f.succeed("apps.manifest.update") },
@@ -564,7 +566,42 @@ func TestAccApplication_updateFails(t *testing.T) {
 	})
 }
 
-// A failed refresh stops the plan, rather than planning from stale state.
+// A list of errors on update is shown as on create, with the detail naming
+// the update.
+func TestAccApplication_updateFailsWithErrors(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					f.failWith("apps.manifest.update", map[string]any{
+						"ok":    false,
+						"error": "invalid_manifest",
+						"errors": []map[string]string{
+							{"message": "Description is too long", "pointer": "/display_information/description"},
+						},
+					})
+				},
+				Config:      applicationResourceDescriptionConfig(f, "New"),
+				ExpectError: regexp.MustCompile(`(?s)Error: Description is too long.*Failed to update the Slack app.*/display_information/description`),
+			},
+			{
+				PreConfig: func() { f.succeed("apps.manifest.update") },
+				Config:    applicationResourceDescriptionConfig(f, "New"),
+				Check:     applicationResourceCheckDescription(f, "New"),
+			},
+		},
+	})
+}
+
+// A failed refresh stops the plan, rather than planning from stale state. The
+// error says that reading the app failed.
 func TestAccApplication_refreshFails(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
@@ -580,7 +617,7 @@ func TestAccApplication_refreshFails(t *testing.T) {
 					f.failWith("apps.manifest.export", map[string]any{"ok": false, "error": "internal_error"})
 				},
 				Config:      applicationResourceDescriptionConfig(f, "Old"),
-				ExpectError: regexp.MustCompile(`internal_error`),
+				ExpectError: regexp.MustCompile(`(?s)Error: Failed to read the Slack app.*internal_error`),
 			},
 			{
 				PreConfig: func() { f.succeed("apps.manifest.export") },
@@ -737,7 +774,7 @@ func TestAccApplication_exportWithoutManifest(t *testing.T) {
 }
 
 // A failed delete keeps the app in state, so that destroying again still
-// reaches it.
+// reaches it. The error says that the delete failed.
 func TestAccApplication_deleteFails(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
@@ -754,7 +791,7 @@ func TestAccApplication_deleteFails(t *testing.T) {
 				},
 				Config:      applicationResourceDescriptionConfig(f, "Old"),
 				Destroy:     true,
-				ExpectError: regexp.MustCompile(`internal_error`),
+				ExpectError: regexp.MustCompile(`(?s)Error: Failed to delete the Slack app.*internal_error`),
 			},
 			{
 				PreConfig: func() { f.succeed("apps.manifest.delete") },
