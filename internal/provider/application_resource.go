@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/manifesttype"
@@ -170,6 +171,14 @@ func (r *applicationResource) Read(ctx context.Context, request resource.ReadReq
 			AppID: data.ID.ValueString(),
 		},
 	)
+	if slack.IsAppNotFoundError(err) {
+		// Deleted outside Terraform. Leaving state makes the plan create it
+		// again, with a new ID and new credentials.
+		tflog.Warn(ctx, "The Slack app no longer exists, removing it from state", map[string]any{"app_id": data.ID.ValueString()})
+		response.State.RemoveResource(ctx)
+
+		return
+	}
 	if err != nil {
 		r.handleSlackErrorInDiag(&response.Diagnostics, err)
 
@@ -278,6 +287,12 @@ func (r *applicationResource) Delete(ctx context.Context, request resource.Delet
 			AppID: data.ID.ValueString(),
 		},
 	)
+	if slack.IsAppNotFoundError(err) {
+		// Already deleted outside Terraform, which is what destroy wants.
+		tflog.Warn(ctx, "The Slack app was already deleted", map[string]any{"app_id": data.ID.ValueString()})
+
+		return
+	}
 	if err != nil {
 		r.handleSlackErrorInDiag(&response.Diagnostics, err)
 
