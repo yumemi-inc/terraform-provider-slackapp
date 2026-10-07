@@ -215,6 +215,20 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 		return
 	}
 
+	// Slack fills in every setting the manifest did not state. Keep only the
+	// fields the manifest in state has, so those defaults do not show as
+	// drift. On import there is no manifest in state, and all of it is kept.
+	if hasLocalManifest {
+		pruned, err := manifesttype.PruneToPrior(string(manifestJSON), data.Manifest.ValueString())
+		if err != nil {
+			response.Diagnostics.AddError("Failed to compare the exported manifest with the one in state.", err.Error())
+
+			return
+		}
+
+		manifestJSON = []byte(pruned)
+	}
+
 	data.Manifest = manifesttype.NewManifestValue(string(manifestJSON))
 
 	response.Diagnostics.Append(response.State.Set(ctx, &data)...)

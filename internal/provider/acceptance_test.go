@@ -341,3 +341,157 @@ func TestAccApplication_unmodeledField(t *testing.T) {
 		},
 	})
 }
+
+// acceptanceDescriptionConfig is an app whose manifest is written with
+// jsonencode, with or without a description.
+func acceptanceDescriptionConfig(f *fakeSlack, description string) string {
+	displayInformation := `{ name = "Example" }`
+	if description != "" {
+		displayInformation = fmt.Sprintf(`{ name = "Example", description = %q }`, description)
+	}
+
+	return fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+
+resource "slackapp_application" "test" {
+  manifest = jsonencode({
+    display_information = %s
+    settings = {
+      socket_mode_enabled = true
+    }
+  })
+}
+`, f.baseURL(), displayInformation)
+}
+
+// acceptanceCheckDescription checks the description Slack holds for the app
+// in state, where "" means none.
+func acceptanceCheckDescription(f *fakeSlack, want string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[acceptanceResource]
+		if !ok {
+			return fmt.Errorf("%s is not in state", acceptanceResource)
+		}
+
+		raw, ok := f.manifest(rs.Primary.ID)
+		if !ok {
+			return fmt.Errorf("Slack has no app %s", rs.Primary.ID)
+		}
+
+		var m struct {
+			DisplayInformation struct {
+				Description *string `json:"description"`
+			} `json:"display_information"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+
+		got := ""
+		if m.DisplayInformation.Description != nil {
+			got = *m.DisplayInformation.Description
+		}
+		if got != want {
+			return fmt.Errorf("Slack holds description %q, want %q", got, want)
+		}
+
+		return nil
+	}
+}
+
+// A field removed from the config must be removed from Slack too, even
+// though Slack fills in defaults that the config never stated.
+func TestAccApplication_removedField(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acceptanceProviderFactories,
+		CheckDestroy:             acceptanceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: acceptanceDescriptionConfig(f, "Old"),
+				Check:  acceptanceCheckDescription(f, "Old"),
+			},
+			{
+				Config: acceptanceDescriptionConfig(f, ""),
+				Check:  acceptanceCheckDescription(f, ""),
+			},
+		},
+	})
+}
+
+// A change made in Slack to a field the config states must show as drift,
+// even though fields the config does not state are ignored.
+func TestAccApplication_driftInSlack(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+	appID := fakeSlackAppID(1)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acceptanceProviderFactories,
+		CheckDestroy:             acceptanceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: acceptanceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					f.editManifest(t, appID, func(m map[string]any) {
+						displayInformation, ok := m["display_information"].(map[string]any)
+						if !ok {
+							t.Fatal("Slack holds no display_information")
+						}
+						displayInformation["description"] = "Edited in Slack"
+					})
+				},
+				Config:             acceptanceDescriptionConfig(f, "Old"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config: acceptanceDescriptionConfig(f, "Old"),
+				Check:  acceptanceCheckDescription(f, "Old"),
+			},
+		},
+	})
+}
+
+// An imported app has every default Slack fills in in state, since there is
+// no prior manifest to prune it to. The import's apply sends the config
+// once, and the plan after it must be empty.
+func TestAccApplication_importRewritten(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+	appID := fakeSlackAppID(1)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acceptanceProviderFactories,
+		CheckDestroy:             acceptanceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: acceptanceRichConfig(f, "Example"),
+			},
+			{
+				Config: acceptanceBaseConfig(f, "Example") + `
+removed {
+  from = slackapp_application.test
+
+  lifecycle {
+    destroy = false
+  }
+}
+`,
+			},
+			{
+				Config: acceptanceRichConfig(f, "Example") + fmt.Sprintf(`
+import {
+  to = slackapp_application.test
+  id = %q
+}
+`, appID),
+				Check: acceptanceCheckName(f, "Example"),
+			},
+		},
+	})
+}
