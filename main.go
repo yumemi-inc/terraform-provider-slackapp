@@ -10,8 +10,6 @@ import (
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider"
 )
 
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
-
 var version string = "dev"
 
 func main() {

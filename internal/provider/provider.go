@@ -1,3 +1,17 @@
+// Package provider is the slackapp Terraform provider: the provider itself,
+// the slackapp_application resource and the slackapp_manifest data source.
+//
+// It connects Terraform to packages that know nothing of it: internal/slack
+// talks to Slack's API, and internal/manifest holds the data source's
+// manifest model. Its subpackages hold the Terraform-facing pieces:
+//
+//   - manifesttype: the resource's manifest attribute type, which compares
+//     manifests by meaning.
+//   - planmodifiers: the resource's plan modifiers.
+//   - manifestblocks: the data source's block models.
+//   - validators: the limits Slack puts on a manifest.
+//
+//declscope:core // the package's entry point: main.go calls New
 package provider
 
 import (
@@ -11,9 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/datasources"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/resources"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
@@ -50,17 +61,6 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	}
 
 	return client, nil
-}
-
-func configure(d Model) (*common.ProviderContext, error) {
-	slackClient, err := configureSlackClient(d)
-	if err != nil {
-		return nil, err
-	}
-
-	return &common.ProviderContext{
-		SlackClient: slackClient,
-	}, nil
 }
 
 type Model struct {
@@ -129,23 +129,22 @@ func (p *Provider) Configure(
 		return
 	}
 
-	client, err := configure(data)
+	client, err := configureSlackClient(data)
 	if err != nil {
 		response.Diagnostics.AddError("Error occurred while configuring the provider.", err.Error())
 	}
 
-	response.DataSourceData = client
 	response.ResourceData = client
 }
 
 func (p *Provider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		datasources.NewSlackAppManifest,
+		newManifestDataSource,
 	}
 }
 
 func (p *Provider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		resources.NewSlackApp,
+		newApplicationResource,
 	}
 }
