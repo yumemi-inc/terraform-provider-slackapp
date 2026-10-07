@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 

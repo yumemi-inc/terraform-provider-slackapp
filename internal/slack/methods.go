@@ -93,7 +93,7 @@ type AppsManifestExportRequest struct {
 type AppsManifestExportResponse struct {
 	Ok bool `json:"ok"`
 	// Manifest is kept as the raw JSON Slack returned. Decoding it into
-	// manifest.App would drop every field that struct does not model.
+	// a struct would drop every field that struct does not model.
 	Manifest json.RawMessage `json:"manifest"`
 }
 

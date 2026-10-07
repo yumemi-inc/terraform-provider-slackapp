@@ -207,7 +207,7 @@ func (r *SlackApp) Read(ctx context.Context, request resource.ReadRequest, respo
 	}
 
 	// Every field Slack exported is kept, including the ones
-	// internal/slack/manifest does not model.
+	// the slackapp_manifest data source does not model.
 	manifestJSON, err := json.Marshal(exported)
 	if err != nil {
 		response.Diagnostics.AddError("Failed to re-serialize the JSON manifest.", err.Error())

@@ -57,7 +57,7 @@ func TestStringSemanticEquals(t *testing.T) {
 			want:  false,
 		},
 		"unmodeled field added is a real change": {
-			// outgoing_domains is not in internal/slack/manifest. Decoding into
+			// outgoing_domains is not in the data source's model. Decoding into
 			// that struct would drop it from both sides.
 			prior: `{"display_information":{"name":"A"}}`,
 			next:  `{"display_information":{"name":"A"},"outgoing_domains":["a.example.com"]}`,

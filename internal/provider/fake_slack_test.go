@@ -61,7 +61,7 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 //
 //   - _metadata is dropped.
 //   - Settings the manifest did not state come back with their defaults,
-//     both ones internal/slack/manifest models (bot_user.always_online,
+//     both ones the slackapp_manifest data source models (bot_user.always_online,
 //     settings.interactivity, ...) and ones it does not
 //     (oauth_config.pkce_enabled, settings.is_mcp_enabled, ...).
 //   - Object keys come back in another order.

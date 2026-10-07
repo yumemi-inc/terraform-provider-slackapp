@@ -15,7 +15,7 @@
 // (which Slack treats as unordered sets) are sorted. Object key order and
 // insignificant whitespace fall out for free because comparison happens on the
 // decoded value, not the string. Every field takes part, including the ones
-// internal/slack/manifest does not model.
+// the slackapp_manifest data source does not model.
 package manifesttype
 
 import (
@@ -144,11 +144,11 @@ func (v Manifest) StringSemanticEquals(
 // manifestsEqual decodes both manifest strings as generic JSON, sorts the
 // arrays Slack treats as sets, and reports whether the results are equal.
 //
-// It decodes into generic values rather than manifest.App on purpose: that
-// struct models only part of the manifest, and decoding into it would drop
-// every other field (functions, workflows, outgoing_domains, ...) from both
-// sides, so a change to only those fields would compare equal and never
-// reach Slack.
+// It decodes into generic values rather than manifest.App, the
+// slackapp_manifest data source's model, on purpose: that struct models only
+// part of the manifest, and decoding into it would drop every other field
+// (functions, workflows, outgoing_domains, ...) from both sides, so a change
+// to only those fields would compare equal and never reach Slack.
 //
 //declscope:shared // suppress_equivalent.go applies the same comparison at plan time
 func manifestsEqual(a, b string) (bool, error) {

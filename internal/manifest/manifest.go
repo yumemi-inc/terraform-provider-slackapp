@@ -1,3 +1,10 @@
+// Package manifest models the parts of a Slack app manifest that the
+// slackapp_manifest data source can build, and encodes them to the JSON the
+// data source outputs.
+//
+// It models only part of the manifest, so nothing reads a manifest back
+// through it: slackapp_application keeps the JSON Slack returns as is, and
+// internal/manifesttype compares manifests as generic JSON.
 package manifest
 
 import (

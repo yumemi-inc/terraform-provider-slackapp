@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/common"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/manifest"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider/datasources/slackappmanifest"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/manifest"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/typeconv"
 )
 

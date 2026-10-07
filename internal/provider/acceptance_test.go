@@ -246,7 +246,7 @@ resource "slackapp_application" "test" {
 }
 
 // acceptanceJSONConfig is an app whose manifest is written with jsonencode,
-// and carries outgoing_domains, which internal/slack/manifest does not
+// and carries outgoing_domains, which the slackapp_manifest data source does not
 // model.
 func acceptanceJSONConfig(f *fakeSlack, domain string) string {
 	return fmt.Sprintf(`
