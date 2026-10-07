@@ -3,7 +3,6 @@ package slack
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -12,10 +11,14 @@ import (
 
 type response interface {
 	IsOk() bool
+	// logFields returns the fields of a reply that are safe to log. Replies
+	// carry tokens and app credentials, so readJSONResponse never logs a
+	// whole reply; each type names what may be logged instead.
+	logFields() map[string]any
 }
 
 //declscope:shared
-func readJSONResponse[T response](ctx context.Context, httpResponse *http.Response) (*T, error) {
+func readJSONResponse[T response](ctx context.Context, methodName string, httpResponse *http.Response) (*T, error) {
 	responseBody, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, err
@@ -32,12 +35,21 @@ func readJSONResponse[T response](ctx context.Context, httpResponse *http.Respon
 			return nil, err
 		}
 
-		tflog.Debug(ctx, fmt.Sprintf("Read JSON error response: %+v", errorResponse))
+		tflog.Debug(ctx, "Slack API method returned an error", map[string]any{
+			"method": methodName,
+			"error":  errorResponse.Error_,
+			"errors": errorResponse.Errors,
+		})
 
 		return nil, &errorResponse
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Read JSON response: %+v", response))
+	fields := response.logFields()
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	fields["method"] = methodName
+	tflog.Debug(ctx, "Slack API method succeeded", fields)
 
 	return &response, nil
 }

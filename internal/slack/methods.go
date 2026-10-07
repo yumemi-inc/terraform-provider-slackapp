@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type AppsManifestCreateRequest struct {
@@ -29,6 +30,11 @@ func (r AppsManifestCreateResponse) IsOk() bool {
 	return r.Ok
 }
 
+// logFields leaves out Credentials: they are the app's secrets.
+func (r AppsManifestCreateResponse) logFields() map[string]any {
+	return map[string]any{"app_id": r.AppID}
+}
+
 func (c *Client) AppsManifestCreate(
 	ctx context.Context,
 	request AppsManifestCreateRequest,
@@ -47,7 +53,7 @@ func (c *Client) AppsManifestCreate(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestCreateResponse](ctx, httpResponse)
+	return readJSONResponse[AppsManifestCreateResponse](ctx, "apps.manifest.create", httpResponse)
 }
 
 type AppsManifestUpdateRequest struct {
@@ -63,6 +69,10 @@ type AppsManifestUpdateResponse struct {
 
 func (r AppsManifestUpdateResponse) IsOk() bool {
 	return r.Ok
+}
+
+func (r AppsManifestUpdateResponse) logFields() map[string]any {
+	return map[string]any{"app_id": r.AppID, "permissions_updated": r.PermissionsUpdated}
 }
 
 func (c *Client) AppsManifestUpdate(
@@ -83,7 +93,7 @@ func (c *Client) AppsManifestUpdate(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestUpdateResponse](ctx, httpResponse)
+	return readJSONResponse[AppsManifestUpdateResponse](ctx, "apps.manifest.update", httpResponse)
 }
 
 type AppsManifestExportRequest struct {
@@ -99,6 +109,10 @@ type AppsManifestExportResponse struct {
 
 func (r AppsManifestExportResponse) IsOk() bool {
 	return r.Ok
+}
+
+func (r AppsManifestExportResponse) logFields() map[string]any {
+	return nil
 }
 
 func (c *Client) AppsManifestExport(
@@ -119,7 +133,7 @@ func (c *Client) AppsManifestExport(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestExportResponse](ctx, httpResponse)
+	return readJSONResponse[AppsManifestExportResponse](ctx, "apps.manifest.export", httpResponse)
 }
 
 type AppsManifestDeleteRequest struct {
@@ -132,6 +146,10 @@ type AppsManifestDeleteResponse struct {
 
 func (r AppsManifestDeleteResponse) IsOk() bool {
 	return r.Ok
+}
+
+func (r AppsManifestDeleteResponse) logFields() map[string]any {
+	return nil
 }
 
 func (c *Client) AppsManifestDelete(
@@ -152,7 +170,7 @@ func (c *Client) AppsManifestDelete(
 		return nil, err
 	}
 
-	return readJSONResponse[AppsManifestDeleteResponse](ctx, httpResponse)
+	return readJSONResponse[AppsManifestDeleteResponse](ctx, "apps.manifest.delete", httpResponse)
 }
 
 type ToolingTokensRotateResponse struct {
@@ -165,6 +183,15 @@ type ToolingTokensRotateResponse struct {
 
 func (r ToolingTokensRotateResponse) IsOk() bool {
 	return r.Ok
+}
+
+// logFields leaves out Token and RefreshToken. The token can change every
+// app in the workspace, and the refresh token can mint new tokens.
+func (r ToolingTokensRotateResponse) logFields() map[string]any {
+	return map[string]any{
+		"issued_at":  r.IssuedAt.Time().UTC().Format(time.RFC3339),
+		"expires_at": r.ExpiresAt.Time().UTC().Format(time.RFC3339),
+	}
 }
 
 func (c *Client) ToolingTokensRotate(
@@ -184,5 +211,5 @@ func (c *Client) ToolingTokensRotate(
 		return nil, err
 	}
 
-	return readJSONResponse[ToolingTokensRotateResponse](ctx, httpResponse)
+	return readJSONResponse[ToolingTokensRotateResponse](ctx, "tooling.tokens.rotate", httpResponse)
 }
