@@ -44,9 +44,11 @@ run = [
   "declscope -fix ./...",
 ]
 
+# tfplugindocs takes the provider name from the directory name unless told,
+# so a checkout or worktree named otherwise would regenerate docs/ wrongly.
 [tasks.docs]
 description = "Regenerate docs/ from the provider schema"
-run = "tfplugindocs generate"
+run = "tfplugindocs generate --provider-name terraform-provider-slackapp"
 
 [tasks.docs-check]
 description = "Fail when docs/ is out of date with the provider schema"
