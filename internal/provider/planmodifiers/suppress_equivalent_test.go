@@ -31,6 +31,16 @@ func TestSuppressEquivalentManifest(t *testing.T) {
 			config:      basetypes.NewStringValue(`{"display_information":{"name":"A","description":"CHANGED","background_color":"#000"},"oauth_config":{"scopes":{"bot":["chat:write","im:write"]}}}`),
 			wantChanged: false,
 		},
+		"unknown config -> leave config": {
+			state:       basetypes.NewStringValue(state),
+			config:      basetypes.NewStringUnknown(),
+			wantChanged: false,
+		},
+		"invalid JSON -> leave config, so the change shows": {
+			state:       basetypes.NewStringValue(state),
+			config:      basetypes.NewStringValue(`{not json`),
+			wantChanged: false,
+		},
 		"create (null state) -> leave config": {
 			state:       basetypes.NewStringNull(),
 			config:      basetypes.NewStringValue(state),
