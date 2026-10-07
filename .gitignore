@@ -1,3 +1,4 @@
 /terraform-provider-slackapp
 /.idea/
 /dist/
+/coverage.txt

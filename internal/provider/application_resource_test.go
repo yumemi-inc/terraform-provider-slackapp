@@ -3,24 +3,20 @@ package provider_test
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/provider"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 )
 
 // These tests drive the provider through the real Terraform CLI, against
 // fakeSlack. They use resource.UnitTest rather than resource.Test, since
 // nothing leaves the machine: they need no TF_ACC, only a terraform binary on
 // PATH, which mise.toml pins.
-
-var applicationResourceProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"slackapp": providerserver.NewProtocol6WithError(provider.New("test")()),
-}
 
 const applicationResourceResource = "slackapp_application.test"
 
@@ -97,6 +93,8 @@ func applicationResourceCheckName(f *fakeSlack, want string) resource.TestCheckF
 }
 
 // applicationResourceCheckDestroyed checks that destroy deleted every app.
+//
+//declscope:shared // provider_test.go checks the refresh-token test cleaned up
 func applicationResourceCheckDestroyed(f *fakeSlack) resource.TestCheckFunc {
 	return func(*terraform.State) error {
 		if n := f.appCount(); n != 0 {
@@ -113,7 +111,7 @@ func TestAccApplication_lifecycle(t *testing.T) {
 	f := newFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -160,7 +158,7 @@ func TestAccApplication_import(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -306,7 +304,7 @@ func TestAccApplication_rewrittenExport(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -327,7 +325,7 @@ func TestAccApplication_unmodeledField(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -408,7 +406,7 @@ func TestAccApplication_removedField(t *testing.T) {
 	f := newRewritingFakeSlack(t)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -430,7 +428,7 @@ func TestAccApplication_driftInSlack(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -466,7 +464,7 @@ func TestAccApplication_importRewritten(t *testing.T) {
 	appID := fakeSlackAppID(1)
 
 	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: applicationResourceProviderFactories,
+		ProtoV6ProviderFactories: providerFactories,
 		CheckDestroy:             applicationResourceCheckDestroyed(f),
 		Steps: []resource.TestStep{
 			{
@@ -494,4 +492,281 @@ import {
 			},
 		},
 	})
+}
+
+// When Slack lists what is wrong with a manifest, each item is shown as its
+// own error, under the message Slack gave.
+func TestAccApplication_createFailsWithErrors(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+	f.failWith("apps.manifest.create", map[string]any{
+		"ok":    false,
+		"error": "invalid_manifest",
+		"errors": []map[string]string{
+			{"message": "Event subscription requires a request URL", "pointer": "/settings/event_subscriptions"},
+		},
+	})
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				ExpectError: regexp.MustCompile(`Event subscription requires a request URL`),
+			},
+		},
+	})
+}
+
+// Without a list, the error code Slack gave is shown.
+func TestAccApplication_createFails(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+	f.failWith("apps.manifest.create", map[string]any{"ok": false, "error": "ratelimited"})
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				ExpectError: regexp.MustCompile(`ratelimited`),
+			},
+		},
+	})
+}
+
+// A failed update leaves the app as it was, and the next apply sends the
+// change again.
+func TestAccApplication_updateFails(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					f.failWith("apps.manifest.update", map[string]any{"ok": false, "error": "invalid_manifest"})
+				},
+				Config:      applicationResourceDescriptionConfig(f, "New"),
+				ExpectError: regexp.MustCompile(`invalid_manifest`),
+			},
+			{
+				PreConfig: func() { f.succeed("apps.manifest.update") },
+				Config:    applicationResourceDescriptionConfig(f, "New"),
+				Check:     applicationResourceCheckDescription(f, "New"),
+			},
+		},
+	})
+}
+
+// A failed refresh stops the plan, rather than planning from stale state.
+func TestAccApplication_refreshFails(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					f.failWith("apps.manifest.export", map[string]any{"ok": false, "error": "internal_error"})
+				},
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				ExpectError: regexp.MustCompile(`internal_error`),
+			},
+			{
+				PreConfig: func() { f.succeed("apps.manifest.export") },
+				Config:    applicationResourceDescriptionConfig(f, "Old"),
+			},
+		},
+	})
+}
+
+// An app deleted in Slack, outside Terraform, makes refresh fail.
+//
+// FIXME(#39): refresh should remove the app from state on app_not_found, so
+// that the plan proposes to create it again. Until then the only way out is
+// terraform state rm, which the last step stands for.
+func TestAccApplication_deletedInSlack(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					if _, err := applicationResourceSlackClient(f).AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: fakeSlackAppID(1)}); err != nil {
+						t.Fatal(err)
+					}
+				},
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				ExpectError: regexp.MustCompile(`app_not_found`),
+			},
+			{
+				// Standing in for terraform state rm, so the post-test
+				// destroy has nothing left to delete.
+				Config: applicationResourceBaseProviderOnly(f) + `
+removed {
+  from = slackapp_application.test
+
+  lifecycle {
+    destroy = false
+  }
+}
+`,
+			},
+		},
+	})
+}
+
+// apps.manifest.export answering ok but without a usable manifest is an
+// error, not an empty app.
+func TestAccApplication_exportWithoutManifest(t *testing.T) {
+	cases := map[string]struct {
+		reply map[string]any
+		error string
+	}{
+		"no manifest":       {map[string]any{"ok": true}, `Slack API returned empty manifest`},
+		"a null manifest":   {map[string]any{"ok": true, "manifest": nil}, `Slack API returned empty manifest`},
+		"not a JSON object": {map[string]any{"ok": true, "manifest": []string{"x"}}, `not a JSON object`},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newRewritingFakeSlack(t)
+
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: providerFactories,
+				CheckDestroy:             applicationResourceCheckDestroyed(f),
+				Steps: []resource.TestStep{
+					{
+						Config: applicationResourceDescriptionConfig(f, "Old"),
+					},
+					{
+						PreConfig:   func() { f.failWith("apps.manifest.export", tc.reply) },
+						Config:      applicationResourceDescriptionConfig(f, "Old"),
+						ExpectError: regexp.MustCompile(tc.error),
+					},
+					{
+						PreConfig: func() { f.succeed("apps.manifest.export") },
+						Config:    applicationResourceDescriptionConfig(f, "Old"),
+					},
+				},
+			})
+		})
+	}
+}
+
+// A failed delete keeps the app in state, so that destroying again still
+// reaches it.
+func TestAccApplication_deleteFails(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationResourceDescriptionConfig(f, "Old"),
+			},
+			{
+				PreConfig: func() {
+					f.failWith("apps.manifest.delete", map[string]any{"ok": false, "error": "internal_error"})
+				},
+				Config:      applicationResourceDescriptionConfig(f, "Old"),
+				Destroy:     true,
+				ExpectError: regexp.MustCompile(`internal_error`),
+			},
+			{
+				PreConfig: func() { f.succeed("apps.manifest.delete") },
+				Config:    applicationResourceDescriptionConfig(f, "Old"),
+				Check:     applicationResourceCheckDescription(f, "Old"),
+			},
+		},
+	})
+}
+
+// Slack drops _metadata from the manifest it exports, so Read carries it
+// over from state. Without that, a manifest with _metadata would drift
+// after every apply.
+func TestAccApplication_metadataKept(t *testing.T) {
+	f := newRewritingFakeSlack(t)
+
+	config := fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+
+data "slackapp_manifest" "test" {
+  metadata {
+    major_version = 1
+    minor_version = 1
+  }
+
+  display_information {
+    name = "Example"
+  }
+}
+
+resource "slackapp_application" "test" {
+  manifest = data.slackapp_manifest.test.json
+}
+`, f.baseURL())
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					func(*terraform.State) error {
+						raw, ok := f.manifest(fakeSlackAppID(1))
+						if !ok {
+							return fmt.Errorf("Slack has no app")
+						}
+						if !strings.Contains(string(raw), `"_metadata"`) {
+							return fmt.Errorf("the manifest sent to Slack has no _metadata: %s", raw)
+						}
+
+						return nil
+					},
+					resource.TestMatchResourceAttr(applicationResourceResource, "manifest", regexp.MustCompile(`"_metadata"`)),
+				),
+			},
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// applicationResourceBaseProviderOnly is the provider block alone, pointed
+// at the fake.
+func applicationResourceBaseProviderOnly(f *fakeSlack) string {
+	return fmt.Sprintf(`
+provider "slackapp" {
+  base_url                = %q
+  app_configuration_token = "test"
+}
+`, f.baseURL())
+}
+
+// applicationResourceSlackClient is a Slack client pointed at the fake, for a test
+// to change Slack the way someone outside Terraform would.
+func applicationResourceSlackClient(f *fakeSlack) *slack.Client {
+	return slack.NewClient("test").WithBaseURL(f.baseURL())
 }

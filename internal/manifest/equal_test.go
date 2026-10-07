@@ -117,3 +117,51 @@ func TestEqualInvalidJSON(t *testing.T) {
 		t.Error("Equal accepted an invalid manifest")
 	}
 }
+
+// A manifest that is not an object compares as a plain JSON value.
+func TestEqualNonObject(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		a, b string
+		want bool
+	}{
+		"equal arrays":        {`["a","b"]`, `[ "a", "b" ]`, true},
+		"arrays in order":     {`["a","b"]`, `["b","a"]`, false},
+		"object and an array": {`{}`, `[]`, false},
+	}
+
+	for name, tc := range cases {
+		got, err := Equal(tc.a, tc.b)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got != tc.want {
+			t.Errorf("%s: Equal(%s, %s) = %v, want %v", name, tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestEqualTrailingData(t *testing.T) {
+	t.Parallel()
+
+	if _, err := Equal(`{}`, `{} {}`); err == nil {
+		t.Error("Equal accepted a second document after the manifest")
+	}
+}
+
+// Set-like arrays whose elements are objects sort too.
+func TestEqualSetOfObjects(t *testing.T) {
+	t.Parallel()
+
+	got, err := Equal(
+		`{"features":{"unfurl_domains":[{"d":"b"},{"d":"a"}]}}`,
+		`{"features":{"unfurl_domains":[{"d":"a"},{"d":"b"}]}}`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got {
+		t.Error("set-like arrays of objects compared in order")
+	}
+}

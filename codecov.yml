@@ -1,0 +1,7 @@
+codecov:
+  require_ci_to_pass: true
+
+# main.go only starts the provider server, which the acceptance tests do
+# in-process instead.
+ignore:
+  - main.go

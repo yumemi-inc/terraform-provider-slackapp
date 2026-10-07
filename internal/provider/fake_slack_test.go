@@ -31,6 +31,12 @@ type fakeSlack struct {
 	calls map[string]int
 	//declscope:private
 	rewrite bool
+	//declscope:private
+	failures map[string]map[string]any
+	//declscope:private
+	authorizations map[string]string
+	//declscope:private
+	refreshTokens []string
 }
 
 // fakeSlackAppID is the ID the fake gives the nth app it creates, counting
@@ -46,8 +52,10 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 	t.Helper()
 
 	f := &fakeSlack{
-		apps:  map[string]json.RawMessage{},
-		calls: map[string]int{},
+		apps:           map[string]json.RawMessage{},
+		calls:          map[string]int{},
+		failures:       map[string]map[string]any{},
+		authorizations: map[string]string{},
 	}
 	f.server = httptest.NewServer(http.HandlerFunc(f.serveHTTP))
 	t.Cleanup(f.server.Close)
@@ -175,6 +183,80 @@ func (f *fakeSlack) editManifest(t *testing.T, appID string, edit func(map[strin
 	f.apps[appID] = raw
 }
 
+// rotate answers tooling.tokens.rotate: each refresh token gives the next
+// access token, and a new refresh token.
+func (f *fakeSlack) rotate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		f.reply(w, map[string]any{"ok": false, "error": "invalid_form"})
+
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.calls["tooling.tokens.rotate"]++
+	f.refreshTokens = append(f.refreshTokens, r.PostForm.Get("refresh_token"))
+
+	if failure, ok := f.failures["tooling.tokens.rotate"]; ok {
+		f.reply(w, failure)
+
+		return
+	}
+
+	n := len(f.refreshTokens)
+	f.reply(w, map[string]any{
+		"ok":            true,
+		"token":         fmt.Sprintf("xoxe.xoxp-rotated-%d", n),
+		"refresh_token": fmt.Sprintf("xoxe-refresh-%d", n),
+		"iat":           1700000000,
+		"exp":           1700043200,
+	})
+}
+
+// failWith makes every later call of a method answer reply, until
+// succeed clears it.
+//
+//declscope:shared // application_resource_test.go and provider_test.go make Slack fail with it
+func (f *fakeSlack) failWith(method string, reply map[string]any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.failures[method] = reply
+}
+
+// succeed undoes failWith.
+//
+//declscope:shared // application_resource_test.go lets Slack recover with it
+func (f *fakeSlack) succeed(method string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	delete(f.failures, method)
+}
+
+// authorization returns the Authorization header the last call of a method
+// sent.
+//
+//declscope:shared // provider_test.go checks which token the provider used
+func (f *fakeSlack) authorization(method string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.authorizations[method]
+}
+
+// rotatedRefreshTokens returns the refresh tokens tooling.tokens.rotate was
+// called with, in order.
+//
+//declscope:shared // provider_test.go checks the provider rotated its token
+func (f *fakeSlack) rotatedRefreshTokens() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.refreshTokens...)
+}
+
 // appCount returns how many apps exist.
 //
 //declscope:shared // application_resource_test.go checks Slack through it
@@ -198,6 +280,14 @@ func (f *fakeSlack) callCount(method string) int {
 func (f *fakeSlack) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	method := strings.TrimPrefix(r.URL.Path, "/")
 
+	// tooling.tokens.rotate is the one method that takes a form, and no
+	// token: the refresh token in the form is what authenticates it.
+	if method == "tooling.tokens.rotate" {
+		f.rotate(w, r)
+
+		return
+	}
+
 	if r.Header.Get("Authorization") == "" {
 		f.reply(w, map[string]any{"ok": false, "error": "not_authed"})
 
@@ -218,6 +308,13 @@ func (f *fakeSlack) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 
 	f.calls[method]++
+	f.authorizations[method] = r.Header.Get("Authorization")
+
+	if failure, ok := f.failures[method]; ok {
+		f.reply(w, failure)
+
+		return
+	}
 
 	switch method {
 	case "apps.manifest.create":

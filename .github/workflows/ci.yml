@@ -12,6 +12,14 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+
+    # id-token: write is what lets the Codecov upload authenticate as this
+    # workflow run instead of with a stored token. A job's permissions
+    # replace the workflow's, so contents: read is restated.
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - uses: actions/checkout@v7
 
@@ -22,7 +30,27 @@ jobs:
           cache: true
 
       - run: mise run build
-      - run: mise run test
+
+      - name: Run tests with coverage
+        run: mise run coverage
+        env:
+          GOTESTFLAGS: -race
+
+      # OIDC rather than a CODECOV_TOKEN secret: the repository is public, so
+      # there is nothing a token would protect that the run's own identity
+      # does not. A pull request from a fork reaches neither, and uploads
+      # without either one.
+      #
+      # continue-on-error: Codecov being unreachable is not a reason to fail
+      # a pull request.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage.txt
+          flags: unittests
+          name: codecov
+          use_oidc: true
+        continue-on-error: true
 
   lint:
     name: Lint

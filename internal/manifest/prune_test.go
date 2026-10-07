@@ -80,3 +80,11 @@ func TestPruneToPriorInvalidJSON(t *testing.T) {
 		t.Error("PruneToPrior accepted a manifest in state with trailing data")
 	}
 }
+
+func TestPruneToPriorTrailingData(t *testing.T) {
+	t.Parallel()
+
+	if _, err := PruneToPrior(`{} {}`, `{}`); err == nil {
+		t.Error("PruneToPrior accepted an exported manifest with trailing data")
+	}
+}
