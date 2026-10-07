@@ -131,7 +131,7 @@ func (r *applicationResource) Create(ctx context.Context, request resource.Creat
 		},
 	)
 	if err != nil {
-		r.handleSlackErrorInDiag(&response.Diagnostics, err)
+		r.handleSlackErrorInDiag(&response.Diagnostics, "create", err)
 
 		return
 	}
@@ -171,7 +171,7 @@ func (r *applicationResource) Read(ctx context.Context, request resource.ReadReq
 		},
 	)
 	if err != nil {
-		r.handleSlackErrorInDiag(&response.Diagnostics, err)
+		r.handleSlackErrorInDiag(&response.Diagnostics, "read", err)
 
 		return
 	}
@@ -253,7 +253,7 @@ func (r *applicationResource) Update(ctx context.Context, request resource.Updat
 		},
 	)
 	if err != nil {
-		r.handleSlackErrorInDiag(&response.Diagnostics, err)
+		r.handleSlackErrorInDiag(&response.Diagnostics, "update", err)
 
 		return
 	}
@@ -279,7 +279,7 @@ func (r *applicationResource) Delete(ctx context.Context, request resource.Delet
 		},
 	)
 	if err != nil {
-		r.handleSlackErrorInDiag(&response.Diagnostics, err)
+		r.handleSlackErrorInDiag(&response.Diagnostics, "delete", err)
 
 		return
 	}
@@ -293,13 +293,26 @@ func (r *applicationResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), request, response)
 }
 
-func (r *applicationResource) handleSlackErrorInDiag(diagnostics *diag.Diagnostics, err error) {
+// handleSlackErrorInDiag adds err to diagnostics. operation is the verb for
+// what failed: "create", "read", "update" or "delete".
+//
+// When Slack lists what is wrong, each item is its own error under the
+// message Slack gave, and the detail names the operation and where in the
+// manifest the item points. Otherwise the summary names the operation.
+func (r *applicationResource) handleSlackErrorInDiag(diagnostics *diag.Diagnostics, operation string, err error) {
+	summary := "Failed to " + operation + " the Slack app"
+
 	slackErr, ok := err.(*slack.ErrorResponse)
 	if ok && len(slackErr.Errors) > 0 {
 		for _, e := range slackErr.Errors {
-			diagnostics.AddError(e.Message, e.Pointer)
+			detail := summary + "."
+			if e.Pointer != "" {
+				detail += " Slack points to " + e.Pointer + " in the manifest."
+			}
+
+			diagnostics.AddError(e.Message, detail)
 		}
 	} else {
-		diagnostics.AddError("Failed to create a Slack App using API.", err.Error())
+		diagnostics.AddError(summary, err.Error())
 	}
 }
