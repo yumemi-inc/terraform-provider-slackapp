@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -57,8 +56,19 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 }
 
 // newRewritingFakeSlack returns a fake whose apps.manifest.export rewrites
-// the manifest: object keys in another order, the arrays Slack treats as
-// sets reversed. Only the bytes change.
+// the manifest the way Slack was seen to (2026-10, against a test
+// workspace):
+//
+//   - _metadata is dropped.
+//   - Settings the manifest did not state come back with their defaults,
+//     both ones internal/slack/manifest models (bot_user.always_online,
+//     settings.interactivity, ...) and ones it does not
+//     (oauth_config.pkce_enabled, settings.is_mcp_enabled, ...).
+//   - Object keys come back in another order.
+//
+// Arrays keep the order they were sent in, as Slack's do.
+//
+//declscope:shared // acceptance_test.go checks that this causes no drift
 func newRewritingFakeSlack(t *testing.T) *fakeSlack {
 	t.Helper()
 
@@ -68,15 +78,20 @@ func newRewritingFakeSlack(t *testing.T) *fakeSlack {
 	return f
 }
 
-// fakeSlackSetPaths are the manifest arrays whose order Slack does not keep.
-var fakeSlackSetPaths = [][]string{
-	{"oauth_config", "redirect_urls"},
-	{"oauth_config", "scopes", "bot"},
-	{"oauth_config", "scopes", "user"},
-	{"settings", "allowed_ip_address_ranges"},
-	{"settings", "event_subscriptions", "bot_events"},
-	{"settings", "event_subscriptions", "user_events"},
-	{"features", "unfurl_domains"},
+// fakeSlackDefaults are the defaults Slack fills in on export, by the
+// object they go in. An object that is absent stays absent.
+var fakeSlackDefaults = []struct {
+	path     []string
+	key      string
+	defaults any
+}{
+	{[]string{"features", "bot_user"}, "always_online", true},
+	{[]string{"oauth_config"}, "pkce_enabled", false},
+	{[]string{"settings"}, "interactivity", map[string]any{"is_enabled": true}},
+	{[]string{"settings"}, "org_deploy_enabled", false},
+	{[]string{"settings"}, "token_rotation_enabled", false},
+	{[]string{"settings"}, "app_level_token_rotation_enabled", false},
+	{[]string{"settings"}, "is_mcp_enabled", false},
 }
 
 // fakeSlackRewrite rewrites a manifest as newRewritingFakeSlack describes.
@@ -89,9 +104,11 @@ func fakeSlackRewrite(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, err
 	}
 
-	for _, p := range fakeSlackSetPaths {
+	delete(m, "_metadata")
+
+	for _, d := range fakeSlackDefaults {
 		parent := m
-		for _, key := range p[:len(p)-1] {
+		for _, key := range d.path {
 			next, ok := parent[key].(map[string]any)
 			if !ok {
 				parent = nil
@@ -103,14 +120,14 @@ func fakeSlackRewrite(raw json.RawMessage) (json.RawMessage, error) {
 		if parent == nil {
 			continue
 		}
-		if values, ok := parent[p[len(p)-1]].([]any); ok {
-			slices.Reverse(values)
+		if _, ok := parent[d.key]; !ok {
+			parent[d.key] = d.defaults
 		}
 	}
 
 	// encoding/json writes map keys sorted, which is not the order the
 	// slackapp_manifest data source writes them in.
-	return json.MarshalIndent(m, "", "    ")
+	return json.Marshal(m)
 }
 
 // baseURL is what the provider's base_url points at.
@@ -131,6 +148,31 @@ func (f *fakeSlack) manifest(appID string) (json.RawMessage, bool) {
 	m, ok := f.apps[appID]
 
 	return m, ok
+}
+
+// editManifest changes the manifest Slack holds for the app, as someone
+// editing it in Slack's own settings pages would.
+//
+//declscope:shared // acceptance_test.go checks that the change shows as drift
+func (f *fakeSlack) editManifest(t *testing.T, appID string, edit func(map[string]any)) {
+	t.Helper()
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var m map[string]any
+	if err := json.Unmarshal(f.apps[appID], &m); err != nil {
+		t.Fatal(err)
+	}
+
+	edit(m)
+
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.apps[appID] = raw
 }
 
 // appCount returns how many apps exist.
@@ -282,9 +324,9 @@ func fakeSlackExport(t *testing.T, f *fakeSlack, manifest string) string {
 func TestFakeSlackExport(t *testing.T) {
 	t.Parallel()
 
-	// Keys out of alphabetical order, one array Slack treats as a set
-	// (oauth_config.scopes.bot), and one it does not (outgoing_domains).
-	const manifest = `{"oauth_config":{"scopes":{"bot":["a","b","c"]}},"display_information":{"name":"A"},"outgoing_domains":["x","y"]}`
+	// Keys out of alphabetical order, _metadata, an array, and settings
+	// without the defaults Slack fills in.
+	const manifest = `{"settings":{"socket_mode_enabled":true},"_metadata":{"major_version":1},"display_information":{"name":"A"},"oauth_config":{"scopes":{"bot":["b","a"]}}}`
 
 	cases := map[string]struct {
 		newFake func(*testing.T) *fakeSlack
@@ -295,10 +337,10 @@ func TestFakeSlackExport(t *testing.T) {
 			want:    manifest,
 		},
 		"rewritten": {
-			// Keys sorted, the bot scopes reversed, outgoing_domains kept in
-			// order.
+			// _metadata dropped, defaults filled in, keys sorted, the array
+			// kept in order.
 			newFake: newRewritingFakeSlack,
-			want:    `{"display_information":{"name":"A"},"oauth_config":{"scopes":{"bot":["c","b","a"]}},"outgoing_domains":["x","y"]}`,
+			want:    `{"display_information":{"name":"A"},"oauth_config":{"pkce_enabled":false,"scopes":{"bot":["b","a"]}},"settings":{"app_level_token_rotation_enabled":false,"interactivity":{"is_enabled":true},"is_mcp_enabled":false,"org_deploy_enabled":false,"socket_mode_enabled":true,"token_rotation_enabled":false}}`,
 		},
 	}
 
