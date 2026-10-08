@@ -210,7 +210,7 @@ func (f *fakeSlack) rotate(w http.ResponseWriter, r *http.Request) {
 		"token":         fmt.Sprintf("xoxe.xoxp-rotated-%d", n),
 		"refresh_token": fmt.Sprintf("xoxe-refresh-%d", n),
 		"iat":           1700000000,
-		"exp":           1700043200,
+		"exp":           4102444800,
 	})
 }
 

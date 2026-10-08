@@ -2,6 +2,11 @@ package slack
 
 import "time"
 
+// tokenSetExpiryMargin is how long before its expiry an app configuration
+// token is rotated, so that a call does not start with a token that
+// expires on the way.
+const tokenSetExpiryMargin = 5 * time.Minute
+
 // tokenSet is the tokens the client holds at one time. They change
 // together: a rotation replaces all three.
 //
@@ -18,11 +23,18 @@ type tokenSet struct {
 	refreshToken RefreshToken
 }
 
-// usable reports whether there is an app configuration token to send.
+// usable reports whether the app configuration token may be sent: there is
+// one, and it is not due for rotation.
 //
 //declscope:shared // token_source.go checks tokens with it
 func (t tokenSet) usable() bool {
-	return t.appConfigurationToken != ""
+	if t.appConfigurationToken == "" {
+		return false
+	}
+
+	expiresAt := t.appConfigurationTokenExpiresAt
+
+	return expiresAt.IsZero() || time.Now().Add(tokenSetExpiryMargin).Before(expiresAt)
 }
 
 // expiry formats appConfigurationTokenExpiresAt for the log. The log takes

@@ -45,7 +45,8 @@ func (c *Client) WithBaseURL(baseURL string) *Client {
 	return c
 }
 
-// WithAppConfigurationToken makes the client call methods with token.
+// WithAppConfigurationToken makes the client call methods with token until
+// Slack refuses it.
 func (c *Client) WithAppConfigurationToken(token AppConfigurationToken) *Client {
 	c.tokens.setAppConfigurationToken(token)
 
@@ -53,7 +54,7 @@ func (c *Client) WithAppConfigurationToken(token AppConfigurationToken) *Client 
 }
 
 // WithRefreshToken lets the client rotate refreshToken for an app
-// configuration token when it has none.
+// configuration token when it has none, or when its token expires.
 func (c *Client) WithRefreshToken(refreshToken RefreshToken) *Client {
 	c.tokens.setRefreshToken(refreshToken)
 

@@ -5,9 +5,12 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type AppsManifestCreateRequest struct {
@@ -159,10 +162,24 @@ func (c *Client) ToolingTokensRotate(
 }
 
 // callMethod calls methodName with the client's app configuration token.
+// When Slack refuses the token as expired or revoked, it gets another and
+// calls once more.
 func callMethod[T response](ctx context.Context, c *Client, methodName string, request any) (*T, error) {
 	token, err := c.tokens.get(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	response, err := callMethodWithToken[T](ctx, c, methodName, token, request)
+	if !isTokenRefusedError(err) || !c.tokens.markAsRefused(token) {
+		return response, err
+	}
+
+	tflog.Debug(ctx, "Slack refused the app configuration token, refreshing token.", map[string]any{"method": methodName})
+
+	token, refreshErr := c.tokens.get(ctx)
+	if refreshErr != nil {
+		return nil, fmt.Errorf("%w, and getting another token failed: %w", err, refreshErr)
 	}
 
 	return callMethodWithToken[T](ctx, c, methodName, token, request)

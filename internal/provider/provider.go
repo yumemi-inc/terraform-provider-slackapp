@@ -33,16 +33,15 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	appConfigurationToken := stringOrEnvironment(d.AppConfigurationToken, "SLACK_APP_CONFIGURATION_TOKEN")
 	refreshToken := stringOrEnvironment(d.RefreshToken, "SLACK_REFRESH_TOKEN")
 
-	var client *slack.Client
-	if refreshToken == "" {
-		if appConfigurationToken == "" {
-			return nil, errors.New("either app configuration token or refresh token must be provided")
-		}
-
-		client = slack.NewClient().WithAppConfigurationToken(slack.AppConfigurationToken(appConfigurationToken))
-	} else {
-		client = slack.NewClient().WithRefreshToken(slack.RefreshToken(refreshToken))
+	if appConfigurationToken == "" && refreshToken == "" {
+		return nil, errors.New("either app configuration token or refresh token must be provided")
 	}
+
+	// With both, the client uses the app configuration token until Slack
+	// refuses it, then rotates the refresh token.
+	client := slack.NewClient().
+		WithAppConfigurationToken(slack.AppConfigurationToken(appConfigurationToken)).
+		WithRefreshToken(slack.RefreshToken(refreshToken))
 
 	if baseURL != "" {
 		client = client.WithBaseURL(baseURL)
