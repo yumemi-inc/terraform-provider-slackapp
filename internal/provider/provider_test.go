@@ -390,6 +390,85 @@ func TestAccProvider_tokenStoreInvalid(t *testing.T) {
 	}
 }
 
+// providerUnknownError matches an error that names each attribute in names,
+// in order, as not known until apply.
+func providerUnknownError(names []string) *regexp.Regexp {
+	patterns := make([]string, len(names))
+	for i, name := range names {
+		patterns[i] = regexp.QuoteMeta(name) + `\s+is not known until apply`
+	}
+
+	return regexp.MustCompile(`(?s)` + strings.Join(patterns, `.*`))
+}
+
+// A token attribute Terraform knows only at apply is an error, not unset:
+// unset, the provider would rotate the refresh token without keeping the
+// result.
+func TestAccProvider_tokenUnknown(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+
+	tests := map[string]struct {
+		attributes string
+		want       []string
+	}{
+		"app configuration token": {
+			attributes: `app_configuration_token = terraform_data.later.output`,
+			want:       []string{"app_configuration_token"},
+		},
+		"refresh token": {
+			attributes: `refresh_token = terraform_data.later.output`,
+			want:       []string{"refresh_token"},
+		},
+		"token store": {
+			attributes: `token_store = terraform_data.later.output == "" ? null : { file = "tokens.json" }`,
+			want:       []string{"token_store"},
+		},
+		"file": {
+			attributes: `token_store = { file = terraform_data.later.output }`,
+			want:       []string{"token_store.file"},
+		},
+		"command": {
+			attributes: `token_store = { command = [terraform_data.later.output] }`,
+			want:       []string{"token_store.command"},
+		},
+		// Every unknown attribute is named at once, not one per run.
+		"several": {
+			attributes: `
+  refresh_token = terraform_data.later.output
+  token_store   = { file = terraform_data.later.output }
+`,
+			want: []string{"refresh_token", "token_store.file"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: providerFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: `
+resource "terraform_data" "later" {
+  input = "xoxe-later"
+}
+` + providerResource(fmt.Sprintf(`
+  base_url = %q
+  %s
+`, f.baseURL(), tt.attributes)),
+						ExpectError: providerUnknownError(tt.want),
+					},
+				},
+			})
+		})
+	}
+
+	if got := f.rotatedRefreshTokens(); len(got) != 0 {
+		t.Errorf("rotated %q although the configuration was not known", got)
+	}
+}
+
 // The environment may name a file or a command, but not both.
 func TestAccProvider_tokenStoreEnvironmentConflict(t *testing.T) {
 	providerUnsetEnvironment(t)

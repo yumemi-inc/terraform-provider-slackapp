@@ -17,10 +17,14 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"os"
+	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -34,6 +38,10 @@ import (
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
+	if err := requireKnownTokenAttributes(d); err != nil {
+		return nil, err
+	}
+
 	store, err := configureTokenStore(d)
 	if err != nil {
 		return nil, err
@@ -97,7 +105,8 @@ func configureTokenStore(d Model) (slack.TokenStore, error) {
 // neither variable is read. From the environment, the command is one
 // program, with no arguments.
 //
-// The schema gives each value in the attribute its type.
+// The schema gives each value in the attribute its type, and
+// requireKnownTokenAttributes has checked that each is known.
 func tokenStoreOrEnvironment(attribute types.Object) (file string, command []string) {
 	if attribute.IsNull() {
 		if name := os.Getenv("SLACK_TOKEN_STORE_COMMAND"); name != "" {
@@ -117,6 +126,38 @@ func tokenStoreOrEnvironment(attribute types.Object) (file string, command []str
 	}
 
 	return fileValue.ValueString(), command
+}
+
+// requireKnownTokenAttributes fails when Terraform does not know the value
+// of a token attribute yet, naming each such attribute, as when it comes from a resource not yet
+// created. Treated as unset, it would make the provider rotate the refresh
+// token without keeping the result, which voids it.
+func requireKnownTokenAttributes(d Model) error {
+	values := map[string]attr.Value{
+		"app_configuration_token": d.AppConfigurationToken,
+		"refresh_token":           d.RefreshToken,
+		"token_store":             d.TokenStore,
+	}
+	for name, value := range d.TokenStore.Attributes() {
+		values["token_store."+name] = value
+	}
+
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		value := values[name]
+
+		unknown := value.IsUnknown()
+		if list, ok := value.(types.List); ok {
+			unknown = unknown || slices.ContainsFunc(list.Elements(), attr.Value.IsUnknown)
+		}
+
+		if unknown {
+			errs = append(errs, fmt.Errorf("%s is not known until apply, but the provider needs it to start. "+
+				"Set it from values known at plan time, or with its environment variable", name))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 type Model struct {
