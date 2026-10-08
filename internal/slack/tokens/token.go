@@ -1,4 +1,14 @@
-package slack
+// Package tokens holds the tokens that authenticate the Slack client,
+// and decides which one each call carries.
+//
+// Slack's app configuration token lasts 12 hours. A refresh token is traded
+// for a new pair by tooling.tokens.rotate, and works once. A Source hands
+// out the token for each call, rotates for a new one when it must, and,
+// with a Store, keeps the newest pair for the next process.
+//
+// The package knows nothing of HTTP: the caller gives a Source the function
+// that rotates.
+package tokens
 
 import "encoding/json"
 

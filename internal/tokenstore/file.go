@@ -2,8 +2,8 @@
 //
 // Slack's refresh token works once: tooling.tokens.rotate answers with a new
 // one and voids the old. A store keeps the newest, so that the next process
-// can rotate again. The stores here hold the bytes internal/slack gives them
-// and know nothing of what they mean.
+// can rotate again. The stores here hold the bytes internal/slack/tokens gives
+// them and know nothing of what they mean.
 package tokenstore
 
 import (

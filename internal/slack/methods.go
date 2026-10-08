@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
 )
 
 type AppsManifestCreateRequest struct {
@@ -121,11 +123,11 @@ func (c *Client) AppsManifestDelete(
 }
 
 type ToolingTokensRotateResponse struct {
-	Ok           bool                  `json:"ok"`
-	Token        AppConfigurationToken `json:"token"`
-	RefreshToken RefreshToken          `json:"refresh_token"`
-	IssuedAt     UnixTimestamp         `json:"iat"`
-	ExpiresAt    UnixTimestamp         `json:"exp"`
+	Ok           bool                         `json:"ok"`
+	Token        tokens.AppConfigurationToken `json:"token"`
+	RefreshToken tokens.RefreshToken          `json:"refresh_token"`
+	IssuedAt     UnixTimestamp                `json:"iat"`
+	ExpiresAt    UnixTimestamp                `json:"exp"`
 }
 
 func (r ToolingTokensRotateResponse) IsOk() bool {
@@ -143,7 +145,7 @@ func (r ToolingTokensRotateResponse) logFields() map[string]any {
 
 func (c *Client) ToolingTokensRotate(
 	ctx context.Context,
-	refreshToken RefreshToken,
+	refreshToken tokens.RefreshToken,
 ) (*ToolingTokensRotateResponse, error) {
 	values := url.Values{}
 	values.Set("refresh_token", string(refreshToken))
@@ -165,19 +167,19 @@ func (c *Client) ToolingTokensRotate(
 // When Slack refuses the token as expired or revoked, it gets another and
 // calls once more.
 func callMethod[T response](ctx context.Context, c *Client, methodName string, request any) (*T, error) {
-	token, err := c.tokens.get(ctx)
+	token, err := c.tokens.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	response, err := callMethodWithToken[T](ctx, c, methodName, token, request)
-	if !isTokenRefusedError(err) || !c.tokens.markAsRefused(token) {
+	if !isTokenRefusedError(err) || !c.tokens.MarkAsRefused(token) {
 		return response, err
 	}
 
 	tflog.Debug(ctx, "Slack refused the app configuration token, refreshing token.", map[string]any{"method": methodName})
 
-	token, refreshErr := c.tokens.get(ctx)
+	token, refreshErr := c.tokens.Get(ctx)
 	if refreshErr != nil {
 		return nil, fmt.Errorf("%w, and getting another token failed: %w", err, refreshErr)
 	}
@@ -189,7 +191,7 @@ func callMethodWithToken[T response](
 	ctx context.Context,
 	c *Client,
 	methodName string,
-	token AppConfigurationToken,
+	token tokens.AppConfigurationToken,
 	request any,
 ) (*T, error) {
 	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, methodName, token, request)

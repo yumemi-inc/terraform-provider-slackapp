@@ -34,6 +34,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
 )
 
@@ -56,8 +57,8 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	}
 
 	client := slack.NewClient().
-		WithAppConfigurationToken(slack.AppConfigurationToken(appConfigurationToken)).
-		WithRefreshToken(slack.RefreshToken(refreshToken))
+		WithAppConfigurationToken(tokens.AppConfigurationToken(appConfigurationToken)).
+		WithRefreshToken(tokens.RefreshToken(refreshToken))
 
 	if store != nil {
 		client = client.WithTokenStore(store)
@@ -82,7 +83,7 @@ func stringOrEnvironment(attribute types.String, name string) string {
 
 // configureTokenStore returns the store the configuration names, or nil
 // when it names none.
-func configureTokenStore(d Model) (slack.TokenStore, error) {
+func configureTokenStore(d Model) (tokens.Store, error) {
 	file, command := tokenStoreOrEnvironment(d.TokenStore)
 
 	switch {
