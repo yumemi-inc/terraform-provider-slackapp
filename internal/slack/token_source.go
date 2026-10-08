@@ -18,9 +18,9 @@ const tokenSourceRotationTimeout = 2 * time.Minute
 // gets a new one when it has none, when it is about to expire, or when
 // Slack refuses it.
 //
-// newTokenSource takes the one thing a source needs: a rotator. The rest
-// is optional, and set after: an app configuration token, a refresh token.
-// A source with neither has no token to hand out.
+// newTokenSource takes the one thing a source needs: a rotator. The
+// rest is optional, and set after: an app configuration token, a refresh
+// token, a store. A source with none of them has no token to hand out.
 //
 // Terraform calls the provider from several goroutines, and a refresh
 // token works once, so only one of them may rotate it at a time.
@@ -39,6 +39,11 @@ type tokenSource struct {
 	mu sync.Mutex
 	//declscope:private
 	current tokenSet
+	// store refreshes the tokens through the token store. It is nil when
+	// the client has none.
+	//
+	//declscope:private
+	store *tokenStoreRefresher
 }
 
 //declscope:shared // client.go builds the client's with it
@@ -66,6 +71,20 @@ func (s *tokenSource) setRefreshToken(refreshToken RefreshToken) {
 	defer s.mu.Unlock()
 
 	s.current.refreshToken = refreshToken
+	if s.store != nil {
+		s.store.seed = tokenStoreSeed(refreshToken)
+	}
+}
+
+// setStore makes the source keep each rotation's tokens in store, and start
+// from what store holds.
+//
+//declscope:shared // client.go configures the source with it
+func (s *tokenSource) setStore(store TokenStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.store = newTokenStoreRefresher(store, s.current.refreshToken)
 }
 
 // get returns the token to call a method with. It gets a new one first when
@@ -76,37 +95,50 @@ func (s *tokenSource) get(ctx context.Context) (AppConfigurationToken, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.current.usable() {
+	if s.current.usable() && (s.store == nil || s.store.settled()) {
 		return s.current.appConfigurationToken, nil
 	}
 
 	tflog.Debug(ctx, "No app configuration token is usable, refreshing token.")
 
-	next, err := s.rotateFrom(ctx, s.current.refreshToken)
+	var err error
+	if s.store == nil {
+		var next tokenSet
+		if next, err = s.rotateFrom(ctx, s.current.refreshToken); err == nil {
+			s.current = next
+		}
+	} else {
+		// The tokens come back even with an error: they may be newer than
+		// the store, which failed to take them.
+		s.current, err = s.store.refresh(ctx, s.current, s.rotateFrom)
+	}
+
 	if err != nil {
 		return "", err
 	}
-
-	s.current = next
 
 	return s.current.appConfigurationToken, nil
 }
 
 // markAsRefused drops appConfigurationToken after Slack refused it. It
-// reports whether the source may get another, by a refresh token.
+// reports whether the source may get another, by a refresh token or from
+// its store.
 //
 //declscope:shared // methods.go calls it when Slack refuses a token
 func (s *tokenSource) markAsRefused(appConfigurationToken AppConfigurationToken) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.current.refreshToken == "" {
+	if s.current.refreshToken == "" && s.store == nil {
 		return false
 	}
 
 	// Another call may have replaced the token already.
 	if s.current.appConfigurationToken == appConfigurationToken {
 		s.current = tokenSet{refreshToken: s.current.refreshToken}
+		if s.store != nil {
+			s.store.rejected = appConfigurationToken
+		}
 	}
 
 	return true
@@ -115,6 +147,9 @@ func (s *tokenSource) markAsRefused(appConfigurationToken AppConfigurationToken)
 // rotateFrom rotates refreshToken, to the end even when ctx is cancelled.
 // s.mu must be held.
 func (s *tokenSource) rotateFrom(ctx context.Context, refreshToken RefreshToken) (tokenSet, error) {
+	if refreshToken == "" && s.store != nil {
+		return tokenSet{}, errors.New("no app configuration token is usable, and neither the token store nor the configuration holds a refresh token to rotate for one")
+	}
 	if refreshToken == "" {
 		return tokenSet{}, errors.New("no app configuration token is usable, and there is no refresh token to rotate for one")
 	}

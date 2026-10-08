@@ -25,8 +25,8 @@ type Client struct {
 	baseURL string
 }
 
-// NewClient returns a client with no token. Give it an app configuration
-// token or a refresh token before a call.
+// NewClient returns a client with no token. Give it at least one of an app
+// configuration token, a refresh token and a token store before a call.
 func NewClient() *Client {
 	c := &Client{
 		baseURL:    clientDefaultBaseURL,
@@ -57,6 +57,14 @@ func (c *Client) WithAppConfigurationToken(token AppConfigurationToken) *Client 
 // configuration token when it has none, or when its token expires.
 func (c *Client) WithRefreshToken(refreshToken RefreshToken) *Client {
 	c.tokens.setRefreshToken(refreshToken)
+
+	return c
+}
+
+// WithTokenStore makes the client keep each rotation's tokens in store, and
+// start from what store holds.
+func (c *Client) WithTokenStore(store TokenStore) *Client {
+	c.tokens.setStore(store)
 
 	return c
 }

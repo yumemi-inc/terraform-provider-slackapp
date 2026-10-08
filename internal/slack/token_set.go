@@ -8,9 +8,9 @@ import "time"
 const tokenSetExpiryMargin = 5 * time.Minute
 
 // tokenSet is the tokens the client holds at one time. They change
-// together: a rotation replaces all three.
+// together: a rotation, or a read of the store, replaces all three.
 //
-//declscope:shared // token_source.go holds one, and client.go makes one
+//declscope:shared // token_source.go holds one, and token_store.go stores one
 type tokenSet struct {
 	// appConfigurationToken is "" when there is none.
 	appConfigurationToken AppConfigurationToken
@@ -26,7 +26,7 @@ type tokenSet struct {
 // usable reports whether the app configuration token may be sent: there is
 // one, and it is not due for rotation.
 //
-//declscope:shared // token_source.go checks tokens with it
+//declscope:shared // token_source.go and token_store.go check tokens with it
 func (t tokenSet) usable() bool {
 	if t.appConfigurationToken == "" {
 		return false
@@ -40,7 +40,7 @@ func (t tokenSet) usable() bool {
 // expiry formats appConfigurationTokenExpiresAt for the log. The log takes
 // the expiry, never the tokens.
 //
-//declscope:shared // token_source.go logs it
+//declscope:shared // token_source.go and token_store.go log it
 func (t tokenSet) expiry() string {
 	if t.appConfigurationTokenExpiresAt.IsZero() {
 		return "unknown"
