@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -15,6 +16,9 @@ import (
 // is optional, and set after: an app configuration token, a refresh token.
 // A source with neither has no token to hand out.
 //
+// Terraform calls the provider from several goroutines, and a refresh
+// token works once, so only one of them may rotate it at a time.
+//
 //declscope:shared // client.go builds one, and methods.go takes tokens from it
 type tokenSource struct {
 	// rotator trades a refresh token for a new set of tokens. Client gives
@@ -23,6 +27,10 @@ type tokenSource struct {
 	//declscope:private
 	rotator func(ctx context.Context, refreshToken RefreshToken) (tokenSet, error)
 
+	// mu guards the fields below.
+	//
+	//declscope:private
+	mu sync.Mutex
 	//declscope:private
 	current tokenSet
 }
@@ -37,6 +45,9 @@ func newTokenSource(rotator func(ctx context.Context, refreshToken RefreshToken)
 //
 //declscope:shared // client.go configures the source with it
 func (s *tokenSource) setAppConfigurationToken(appConfigurationToken AppConfigurationToken) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.current.appConfigurationToken = appConfigurationToken
 	s.current.appConfigurationTokenExpiresAt = time.Time{}
 }
@@ -45,6 +56,9 @@ func (s *tokenSource) setAppConfigurationToken(appConfigurationToken AppConfigur
 //
 //declscope:shared // client.go configures the source with it
 func (s *tokenSource) setRefreshToken(refreshToken RefreshToken) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.current.refreshToken = refreshToken
 }
 
@@ -53,6 +67,9 @@ func (s *tokenSource) setRefreshToken(refreshToken RefreshToken) {
 //
 //declscope:shared // methods.go calls every method with it
 func (s *tokenSource) get(ctx context.Context) (AppConfigurationToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.current.usable() {
 		return s.current.appConfigurationToken, nil
 	}
@@ -69,7 +86,7 @@ func (s *tokenSource) get(ctx context.Context) (AppConfigurationToken, error) {
 	return s.current.appConfigurationToken, nil
 }
 
-// rotateFrom rotates refreshToken.
+// rotateFrom rotates refreshToken. s.mu must be held.
 func (s *tokenSource) rotateFrom(ctx context.Context, refreshToken RefreshToken) (tokenSet, error) {
 	if refreshToken == "" {
 		return tokenSet{}, errors.New("no app configuration token is usable, and there is no refresh token to rotate for one")

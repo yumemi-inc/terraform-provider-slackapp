@@ -309,6 +309,38 @@ func TestClientRefreshToken(t *testing.T) {
 	}
 }
 
+// Terraform calls the provider from several goroutines. A refresh token
+// works once, so only one of them may rotate it.
+func TestClientRefreshTokenConcurrently(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":1700043200}`,
+		"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
+	})
+	c := slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+
+	rotations := 0
+	for _, call := range s.recorded() {
+		if call.method == "tooling.tokens.rotate" {
+			rotations++
+		}
+	}
+	if rotations != 1 {
+		t.Errorf("rotated %d times, want 1", rotations)
+	}
+}
+
 func TestClientNoToken(t *testing.T) {
 	t.Parallel()
 
