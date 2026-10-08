@@ -34,7 +34,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
@@ -56,8 +57,8 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	}
 
 	client := slack.NewClient().
-		WithAppConfigurationToken(slack.AppConfigurationToken(appConfigurationToken)).
-		WithRefreshToken(slack.RefreshToken(refreshToken))
+		WithAppConfigurationToken(tokens.AppConfigurationToken(appConfigurationToken)).
+		WithRefreshToken(tokens.RefreshToken(refreshToken))
 
 	if store != nil {
 		client = client.WithTokenStore(store)
@@ -82,7 +83,7 @@ func stringOrEnvironment(attribute types.String, name string) string {
 
 // configureTokenStore returns the store the configuration names, or nil
 // when it names none.
-func configureTokenStore(d Model) (slack.TokenStore, error) {
+func configureTokenStore(d Model) (tokens.Store, error) {
 	file, command := tokenStoreOrEnvironment(d.TokenStore)
 
 	switch {
@@ -91,9 +92,9 @@ func configureTokenStore(d Model) (slack.TokenStore, error) {
 		// environment.
 		return nil, errors.New("a token store must be either a file or a command, not both")
 	case file != "":
-		return tokenstore.NewFile(file), nil
+		return storage.NewFile(file), nil
 	case len(command) > 0:
-		return tokenstore.NewCommand(command), nil
+		return storage.NewCommand(command), nil
 	default:
 		return nil, nil
 	}

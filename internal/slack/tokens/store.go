@@ -1,4 +1,4 @@
-package slack
+package tokens
 
 import (
 	"bytes"
@@ -12,11 +12,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// TokenStore keeps the tokens a rotation returns, so that the next process
+// Store keeps the tokens a rotation returns, so that the next process
 // starts from them instead of from a refresh token Slack has voided. It
 // holds bytes the client writes and reads back, and need not know what they
 // mean.
-type TokenStore interface {
+type Store interface {
 	// Lock keeps other processes from rotating until unlock is called, when
 	// the store can do that.
 	Lock(ctx context.Context) (unlock func(), err error)
@@ -25,21 +25,20 @@ type TokenStore interface {
 	Save(ctx context.Context, data []byte) error
 }
 
-// tokenStoreVersion is the version of tokenStoreRecord written now.
-const tokenStoreVersion = 1
+// storeVersion is the version of storeRecord written now.
+const storeVersion = 1
 
-// tokenStoreSaveTimeout bounds the save of a rotation's result. It runs on
-// past a cancelled context: the result holds the only live refresh token.
-const tokenStoreSaveTimeout = 2 * time.Minute
+// storeSaveTimeout bounds the save of a rotation's result. It runs on past
+// a cancelled context: the result holds the only live refresh token.
+const storeSaveTimeout = 2 * time.Minute
 
-// tokenStoreRefresher refreshes a tokenSource's tokens through its
-// TokenStore, keeping the two in step. Under the store's lock, it uses the
-// stored tokens while they are good, and otherwise rotates and saves the
-// result.
+// storeRefresher refreshes a Source's tokens through its Store, keeping
+// the two in step. Under the store's lock, it uses the stored tokens while
+// they are good, and otherwise rotates and saves the result.
 //
-//declscope:shared // token_source.go holds one
-type tokenStoreRefresher struct {
-	// seed is what tokenStoreRecord.SeedSHA256 holds for the configured
+//declscope:shared // source.go holds one
+type storeRefresher struct {
+	// seed is what storeRecord.SeedSHA256 holds for the configured
 	// refresh token.
 	seed string
 	// rejected is the token Slack last refused as expired or revoked. A
@@ -47,7 +46,7 @@ type tokenStoreRefresher struct {
 	rejected AppConfigurationToken
 
 	//declscope:private
-	store TokenStore
+	store Store
 	// read is whether the store was read yet. A token from the
 	// configuration is used only after the store, which may hold a newer
 	// one: Slack revokes a token once it is rotated.
@@ -59,19 +58,19 @@ type tokenStoreRefresher struct {
 	// handed out again.
 	//
 	//declscope:private
-	unsaved *tokenStoreRecord
+	unsaved *storeRecord
 }
 
-//declscope:shared // token_source.go makes one when a store is set
-func newTokenStoreRefresher(store TokenStore, configuredRefreshToken RefreshToken) *tokenStoreRefresher {
-	return &tokenStoreRefresher{store: store, seed: tokenStoreSeed(configuredRefreshToken)}
+//declscope:shared // source.go makes one when a store is set
+func newStoreRefresher(store Store, configuredRefreshToken RefreshToken) *storeRefresher {
+	return &storeRefresher{store: store, seed: storeSeed(configuredRefreshToken)}
 }
 
 // settled reports whether the tokens in memory may be used without
 // visiting the store: it was read, and nothing waits to be saved.
 //
-//declscope:shared // token_source.go checks it before each call
-func (s *tokenStoreRefresher) settled() bool {
+//declscope:shared // source.go checks it before each call
+func (s *storeRefresher) settled() bool {
 	return s.read && s.unsaved == nil
 }
 
@@ -84,12 +83,12 @@ func (s *tokenStoreRefresher) settled() bool {
 // rotation's result, those tokens are the only live ones; they are kept to
 // save on the next call.
 //
-//declscope:shared // token_source.go refreshes through it
-func (s *tokenStoreRefresher) refresh(
+//declscope:shared // source.go refreshes through it
+func (s *storeRefresher) refresh(
 	ctx context.Context,
-	current tokenSet,
-	rotator func(ctx context.Context, refreshToken RefreshToken) (tokenSet, error),
-) (tokenSet, error) {
+	current Set,
+	rotator func(ctx context.Context, refreshToken RefreshToken) (Set, error),
+) (Set, error) {
 	unlock, err := s.store.Lock(ctx)
 	if err != nil {
 		return current, fmt.Errorf("locking the token store: %w", err)
@@ -103,7 +102,7 @@ func (s *tokenStoreRefresher) refresh(
 
 	// Read under the lock: another process may have rotated since this one
 	// started.
-	record, err := loadTokenStoreRecord(ctx, s.store)
+	record, err := loadStoreRecord(ctx, s.store)
 	if err != nil {
 		return current, err
 	}
@@ -111,7 +110,7 @@ func (s *tokenStoreRefresher) refresh(
 	s.read = true
 
 	seed := s.seed
-	refreshToken := current.refreshToken
+	refreshToken := current.RefreshToken
 
 	switch {
 	case record == nil:
@@ -123,7 +122,7 @@ func (s *tokenStoreRefresher) refresh(
 		seed = record.SeedSHA256
 		stored := record.tokens()
 
-		if stored.usable() && stored.appConfigurationToken != s.rejected {
+		if stored.usable() && stored.AppConfigurationToken != s.rejected {
 			tflog.Debug(ctx, "Using the app configuration token from the token store", map[string]any{
 				"expires_at": stored.expiry(),
 			})
@@ -131,13 +130,13 @@ func (s *tokenStoreRefresher) refresh(
 			return stored, nil
 		}
 
-		if stored.refreshToken != "" {
-			refreshToken = stored.refreshToken
+		if stored.RefreshToken != "" {
+			refreshToken = stored.RefreshToken
 		}
 
 		// The record began from the configured tokens, so a token from the
 		// configuration is older than it, and Slack has revoked it.
-		current = tokenSet{refreshToken: current.refreshToken}
+		current = Set{RefreshToken: current.RefreshToken}
 	}
 
 	if current.usable() {
@@ -153,17 +152,17 @@ func (s *tokenStoreRefresher) refresh(
 
 	s.rejected = ""
 
-	return next, s.save(ctx, tokenStoreRecordOf(next, seed))
+	return next, s.save(ctx, storeRecordOf(next, seed))
 }
 
 // save keeps record in the store, to the end even when ctx is cancelled.
 // When the store fails, it keeps record to save on the next call. The
 // store's lock must be held.
-func (s *tokenStoreRefresher) save(ctx context.Context, record tokenStoreRecord) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), tokenStoreSaveTimeout)
+func (s *storeRefresher) save(ctx context.Context, record storeRecord) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), storeSaveTimeout)
 	defer cancel()
 
-	if err := saveTokenStoreRecord(ctx, s.store, record); err != nil {
+	if err := saveStoreRecord(ctx, s.store, record); err != nil {
 		s.unsaved = &record
 
 		return fmt.Errorf("rotated the app configuration token, but could not keep the new tokens. "+
@@ -175,8 +174,8 @@ func (s *tokenStoreRefresher) save(ctx context.Context, record tokenStoreRecord)
 	return nil
 }
 
-// tokenStoreRecord is what the client keeps in a TokenStore.
-type tokenStoreRecord struct {
+// storeRecord is what a Source keeps in a Store.
+type storeRecord struct {
 	Version               int    `json:"version"`
 	AppConfigurationToken string `json:"app_configuration_token"`
 	RefreshToken          string `json:"refresh_token"`
@@ -190,37 +189,37 @@ type tokenStoreRecord struct {
 	SeedSHA256 string `json:"seed_sha256"`
 }
 
-func tokenStoreRecordOf(tokens tokenSet, seed string) tokenStoreRecord {
-	record := tokenStoreRecord{
-		Version:               tokenStoreVersion,
-		AppConfigurationToken: string(tokens.appConfigurationToken),
-		RefreshToken:          string(tokens.refreshToken),
+func storeRecordOf(set Set, seed string) storeRecord {
+	record := storeRecord{
+		Version:               storeVersion,
+		AppConfigurationToken: string(set.AppConfigurationToken),
+		RefreshToken:          string(set.RefreshToken),
 		SeedSHA256:            seed,
 	}
-	if !tokens.appConfigurationTokenExpiresAt.IsZero() {
-		record.ExpiresAt = tokens.appConfigurationTokenExpiresAt.Unix()
+	if !set.AppConfigurationTokenExpiresAt.IsZero() {
+		record.ExpiresAt = set.AppConfigurationTokenExpiresAt.Unix()
 	}
 
 	return record
 }
 
-func (r *tokenStoreRecord) tokens() tokenSet {
-	tokens := tokenSet{
-		appConfigurationToken: AppConfigurationToken(r.AppConfigurationToken),
-		refreshToken:          RefreshToken(r.RefreshToken),
+func (r *storeRecord) tokens() Set {
+	set := Set{
+		AppConfigurationToken: AppConfigurationToken(r.AppConfigurationToken),
+		RefreshToken:          RefreshToken(r.RefreshToken),
 	}
 	if r.ExpiresAt != 0 {
-		tokens.appConfigurationTokenExpiresAt = time.Unix(r.ExpiresAt, 0)
+		set.AppConfigurationTokenExpiresAt = time.Unix(r.ExpiresAt, 0)
 	}
 
-	return tokens
+	return set
 }
 
-// tokenStoreSeed returns what tokenStoreRecord.SeedSHA256 holds for the
+// storeSeed returns what storeRecord.SeedSHA256 holds for the
 // configured refresh token, or "" when none is configured.
 //
-//declscope:shared // token_source.go sets the seed when the refresh token changes
-func tokenStoreSeed(configuredRefreshToken RefreshToken) string {
+//declscope:shared // source.go sets the seed when the refresh token changes
+func storeSeed(configuredRefreshToken RefreshToken) string {
 	if configuredRefreshToken == "" {
 		return ""
 	}
@@ -230,9 +229,9 @@ func tokenStoreSeed(configuredRefreshToken RefreshToken) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// loadTokenStoreRecord returns the record in store, or nil when it holds
+// loadStoreRecord returns the record in store, or nil when it holds
 // none.
-func loadTokenStoreRecord(ctx context.Context, store TokenStore) (*tokenStoreRecord, error) {
+func loadStoreRecord(ctx context.Context, store Store) (*storeRecord, error) {
 	data, err := store.Load(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("reading the token store: %w", err)
@@ -243,19 +242,19 @@ func loadTokenStoreRecord(ctx context.Context, store TokenStore) (*tokenStoreRec
 		return nil, nil
 	}
 
-	var record tokenStoreRecord
+	var record storeRecord
 	// The error says nothing of the content: it holds the tokens.
 	if err := json.Unmarshal(data, &record); err != nil {
 		return nil, fmt.Errorf("the token store holds something that is not a token record")
 	}
-	if record.Version != tokenStoreVersion {
-		return nil, fmt.Errorf("the token store holds a record of version %d, want %d", record.Version, tokenStoreVersion)
+	if record.Version != storeVersion {
+		return nil, fmt.Errorf("the token store holds a record of version %d, want %d", record.Version, storeVersion)
 	}
 
 	return &record, nil
 }
 
-func saveTokenStoreRecord(ctx context.Context, store TokenStore, record tokenStoreRecord) error {
+func saveStoreRecord(ctx context.Context, store Store, record storeRecord) error {
 	data, err := json.Marshal(record)
 	if err != nil {
 		return err

@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
 )
 
 // clientCall is one request the Slack API received.
@@ -31,24 +32,16 @@ type clientCall struct {
 
 // clientServer is a Slack API that answers each method with a fixed reply
 // and records what it was sent.
-//
-//declscope:shared // token_store_test.go drives the client against it
 type clientServer struct {
 	*httptest.Server
 
-	//declscope:private
-	mu sync.Mutex
-	//declscope:private
+	mu      sync.Mutex
 	replies map[string]string
-	//declscope:private
-	calls []clientCall
+	calls   []clientCall
 	// refused maps the tokens the server refuses to the error it answers.
-	//
-	//declscope:private
 	refused map[string]string
 }
 
-//declscope:shared // token_store_test.go drives the client against it
 func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 	t.Helper()
 
@@ -87,15 +80,11 @@ func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 }
 
 // expire makes the server answer token_expired to calls sent with token.
-//
-//declscope:shared // token_store_test.go drives the client against it
 func (s *clientServer) expire(token string) {
 	s.refuse(token, "token_expired")
 }
 
 // refuse makes the server answer code to calls sent with token.
-//
-//declscope:shared // token_store_test.go drives the client against it
 func (s *clientServer) refuse(token, code string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,26 +92,8 @@ func (s *clientServer) refuse(token, code string) {
 	s.refused[token] = code
 }
 
-// rotated returns the refresh tokens tooling.tokens.rotate received, in
-// order.
-//
-//declscope:shared // token_store_test.go drives the client against it
-func (s *clientServer) rotated() []string {
-	var rotated []string
-	for _, call := range s.recorded() {
-		if call.method == "tooling.tokens.rotate" {
-			form, _ := url.ParseQuery(call.body)
-			rotated = append(rotated, form.Get("refresh_token"))
-		}
-	}
-
-	return rotated
-}
-
 // methods returns the methods the server received, in order, and the token
 // each was sent with.
-//
-//declscope:shared // token_store_test.go drives the client against it
 func (s *clientServer) methods() []string {
 	calls := s.recorded()
 
@@ -137,7 +108,7 @@ func (s *clientServer) methods() []string {
 	return methods
 }
 
-func (s *clientServer) client(token slack.AppConfigurationToken) *slack.Client {
+func (s *clientServer) client(token tokens.AppConfigurationToken) *slack.Client {
 	return slack.NewClient().WithAppConfigurationToken(token).WithBaseURL(s.URL + "/")
 }
 
@@ -429,6 +400,28 @@ func TestClientTokenRefused(t *testing.T) {
 	}
 }
 
+// When Slack refuses the token and no other can be had, the error says
+// both.
+func TestClientTokenRefusedAndNoOther(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":false,"error":"invalid_refresh_token"}`,
+	})
+	s.refuse("xoxe-old", "token_revoked")
+	c := slack.NewClient().WithAppConfigurationToken("xoxe-old").WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	_, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+
+	var slackErr *slack.ErrorResponse
+	if !errors.As(err, &slackErr) || slackErr.Error() != "token_revoked" {
+		t.Fatalf("export returned %v, want token_revoked first", err)
+	}
+	if !strings.Contains(err.Error(), "getting another token failed: invalid_refresh_token") {
+		t.Errorf("error = %q, want why no other token could be had", err)
+	}
+}
+
 // Other errors are not a reason to rotate.
 func TestClientTokenInvalid(t *testing.T) {
 	t.Parallel()
@@ -603,6 +596,24 @@ func TestToolingTokensRotateTimestamps(t *testing.T) {
 	}
 }
 
+// The tokens decode from Slack's reply as the plain strings they are.
+func TestToolingTokensRotateTokens(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe.xoxp-new","refresh_token":"xoxe-new"}`,
+	})
+
+	got, err := s.client("").ToolingTokensRotate(t.Context(), "refresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(got.Token) != "xoxe.xoxp-new" || string(got.RefreshToken) != "xoxe-new" {
+		t.Errorf("decoded %q and %q", string(got.Token), string(got.RefreshToken))
+	}
+}
+
 func TestUnixTimestampInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -719,8 +730,8 @@ func clientLogDrive(t *testing.T) string {
 	s := clientLogServer(t)
 
 	clients := []*slack.Client{
-		slack.NewClient().WithRefreshToken(slack.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
-		s.client(slack.AppConfigurationToken(clientLogSecrets["app configuration token"])),
+		slack.NewClient().WithRefreshToken(tokens.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
+		s.client(tokens.AppConfigurationToken(clientLogSecrets["app configuration token"])),
 	}
 	for _, c := range clients {
 		if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{Manifest: `{}`}); err != nil {

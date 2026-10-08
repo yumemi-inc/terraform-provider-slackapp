@@ -1,4 +1,4 @@
-package tokenstore_test
+package storage_test
 
 import (
 	"context"
@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 func TestFileRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "nested", "tokens.json")
-	f := tokenstore.NewFile(path)
+	f := storage.NewFile(path)
 	ctx := t.Context()
 
 	got, err := f.Load(ctx)
@@ -59,7 +59,7 @@ func TestFileLoadError(t *testing.T) {
 	t.Parallel()
 
 	// A directory where the file should be cannot be read as one.
-	if _, err := tokenstore.NewFile(t.TempDir()).Load(t.Context()); err == nil {
+	if _, err := storage.NewFile(t.TempDir()).Load(t.Context()); err == nil {
 		t.Error("Load read a directory")
 	}
 }
@@ -73,7 +73,7 @@ func TestFileSaveError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := tokenstore.NewFile(filepath.Join(parent, "tokens.json"))
+	f := storage.NewFile(filepath.Join(parent, "tokens.json"))
 	if err := f.Save(t.Context(), []byte("{}")); err == nil {
 		t.Error("Save wrote under a file")
 	}
@@ -88,8 +88,8 @@ func TestFileLock(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "tokens.json")
-	first := tokenstore.NewFile(path)
-	second := tokenstore.NewFile(path)
+	first := storage.NewFile(path)
+	second := storage.NewFile(path)
 
 	unlock, err := first.Lock(t.Context())
 	if err != nil {
@@ -142,7 +142,7 @@ func TestFileReadOnlyDirectory(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 
-	f := tokenstore.NewFile(filepath.Join(dir, "tokens.json"))
+	f := storage.NewFile(filepath.Join(dir, "tokens.json"))
 	if err := f.Save(t.Context(), []byte("{}")); err == nil {
 		t.Error("Save wrote to a read-only directory")
 	}
