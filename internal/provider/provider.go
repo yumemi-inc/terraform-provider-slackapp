@@ -17,43 +17,51 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"os"
+	"slices"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
-	baseURL := os.Getenv("SLACK_BASE_URL")
-	appConfigurationToken := os.Getenv("SLACK_APP_CONFIGURATION_TOKEN")
-	refreshToken := os.Getenv("SLACK_REFRESH_TOKEN")
-
-	if !d.BaseURL.IsNull() {
-		baseURL = d.BaseURL.ValueString()
+	if err := requireKnownTokenAttributes(d); err != nil {
+		return nil, err
 	}
 
-	if !d.AppConfigurationToken.IsNull() {
-		appConfigurationToken = d.AppConfigurationToken.ValueString()
+	store, err := configureTokenStore(d)
+	if err != nil {
+		return nil, err
 	}
 
-	if !d.RefreshToken.IsNull() {
-		refreshToken = d.RefreshToken.ValueString()
+	baseURL := stringOrEnvironment(d.BaseURL, "SLACK_BASE_URL")
+	appConfigurationToken := stringOrEnvironment(d.AppConfigurationToken, "SLACK_APP_CONFIGURATION_TOKEN")
+	refreshToken := stringOrEnvironment(d.RefreshToken, "SLACK_REFRESH_TOKEN")
+
+	if appConfigurationToken == "" && refreshToken == "" && store == nil {
+		return nil, errors.New("either app configuration token, refresh token or token store must be provided")
 	}
 
-	var client *slack.Client
-	if refreshToken == "" {
-		if appConfigurationToken == "" {
-			return nil, errors.New("either app configuration token or refresh token must be provided")
-		}
+	client := slack.NewClient().
+		WithAppConfigurationToken(tokens.AppConfigurationToken(appConfigurationToken)).
+		WithRefreshToken(tokens.RefreshToken(refreshToken))
 
-		client = slack.NewClient(appConfigurationToken)
-	} else {
-		client = slack.NewClientFromRefreshToken(refreshToken)
+	if store != nil {
+		client = client.WithTokenStore(store)
 	}
 
 	if baseURL != "" {
@@ -63,10 +71,101 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	return client, nil
 }
 
+// stringOrEnvironment returns the attribute's value, or the environment
+// variable name when the attribute is not set.
+func stringOrEnvironment(attribute types.String, name string) string {
+	if attribute.IsNull() {
+		return os.Getenv(name)
+	}
+
+	return attribute.ValueString()
+}
+
+// configureTokenStore returns the store the configuration names, or nil
+// when it names none.
+func configureTokenStore(d Model) (tokens.Store, error) {
+	file, command := tokenStoreOrEnvironment(d.TokenStore)
+
+	switch {
+	case file != "" && len(command) > 0:
+		// The schema rejects both in the attribute, but not in the
+		// environment.
+		return nil, errors.New("a token store must be either a file or a command, not both")
+	case file != "":
+		return storage.NewFile(file), nil
+	case len(command) > 0:
+		return storage.NewCommand(command), nil
+	default:
+		return nil, nil
+	}
+}
+
+// tokenStoreOrEnvironment returns the file and the command the attribute
+// names, or those SLACK_TOKEN_STORE_FILE and SLACK_TOKEN_STORE_COMMAND name
+// when the attribute is not set. The attribute is taken whole: with it set,
+// neither variable is read. From the environment, the command is one
+// program, with no arguments.
+//
+// The schema gives each value in the attribute its type, and
+// requireKnownTokenAttributes has checked that each is known.
+func tokenStoreOrEnvironment(attribute types.Object) (file string, command []string) {
+	if attribute.IsNull() {
+		if name := os.Getenv("SLACK_TOKEN_STORE_COMMAND"); name != "" {
+			command = []string{name}
+		}
+
+		return os.Getenv("SLACK_TOKEN_STORE_FILE"), command
+	}
+
+	attributes := attribute.Attributes()
+	fileValue, _ := attributes["file"].(types.String)
+	commandValue, _ := attributes["command"].(types.List)
+
+	for _, element := range commandValue.Elements() {
+		value, _ := element.(types.String)
+		command = append(command, value.ValueString())
+	}
+
+	return fileValue.ValueString(), command
+}
+
+// requireKnownTokenAttributes fails when Terraform does not know the value
+// of a token attribute yet, naming each such attribute, as when it comes from a resource not yet
+// created. Treated as unset, it would make the provider rotate the refresh
+// token without keeping the result, which voids it.
+func requireKnownTokenAttributes(d Model) error {
+	values := map[string]attr.Value{
+		"app_configuration_token": d.AppConfigurationToken,
+		"refresh_token":           d.RefreshToken,
+		"token_store":             d.TokenStore,
+	}
+	for name, value := range d.TokenStore.Attributes() {
+		values["token_store."+name] = value
+	}
+
+	var errs []error
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		value := values[name]
+
+		unknown := value.IsUnknown()
+		if list, ok := value.(types.List); ok {
+			unknown = unknown || slices.ContainsFunc(list.Elements(), attr.Value.IsUnknown)
+		}
+
+		if unknown {
+			errs = append(errs, fmt.Errorf("%s is not known until apply, but the provider needs it to start. "+
+				"Set it from values known at plan time, or with its environment variable", name))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type Model struct {
 	AppConfigurationToken types.String `tfsdk:"app_configuration_token"`
 	RefreshToken          types.String `tfsdk:"refresh_token"`
 	BaseURL               types.String `tfsdk:"base_url"`
+	TokenStore            types.Object `tfsdk:"token_store"`
 }
 
 type Provider struct {
@@ -111,6 +210,37 @@ func (p *Provider) Schema(_ context.Context, _ provider.SchemaRequest, response 
 			"base_url": schema.StringAttribute{
 				MarkdownDescription: "Base URL of the Slack API. Defaults to `https://slack.com/api/`.",
 				Optional:            true,
+			},
+			"token_store": schema.SingleNestedAttribute{
+				MarkdownDescription: "Where to keep the tokens that each rotation of the refresh token returns. " +
+					"Slack voids a refresh token once it is used, so without a store the configured refresh token " +
+					"works for one run only. Set exactly one of `file` and `command`. " +
+					"Can also be set with the `SLACK_TOKEN_STORE_FILE` or `SLACK_TOKEN_STORE_COMMAND` environment variable.",
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"file": schema.StringAttribute{
+						MarkdownDescription: "Path of a file to keep the tokens in. Use it where the disk outlives a run, " +
+							"such as on an Atlantis server. Runs that share the file take turns through a lock file beside it.",
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+							stringvalidator.ExactlyOneOf(path.MatchRelative().AtParent().AtName("command")),
+						},
+					},
+					"command": schema.ListAttribute{
+						MarkdownDescription: "A program, and its arguments, that keeps the tokens anywhere it likes, " +
+							"such as a secret manager. The provider runs it with `get` added, and reads what it last kept from stdout " +
+							"(nothing when it keeps nothing yet). It runs it with `store` added, and writes the new tokens to stdin. " +
+							"The program must read all of stdin, and must never print the tokens to stderr: the provider shows stderr when the program fails. " +
+							"The provider takes no lock: the program must keep two runs from rotating at once.",
+						ElementType: types.StringType,
+						Optional:    true,
+						Validators: []validator.List{
+							listvalidator.SizeAtLeast(1),
+							listvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+						},
+					},
+				},
 			},
 		},
 	}

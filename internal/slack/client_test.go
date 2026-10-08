@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
 )
 
 // clientCall is one request the Slack API received.
@@ -36,12 +38,14 @@ type clientServer struct {
 	mu      sync.Mutex
 	replies map[string]string
 	calls   []clientCall
+	// refused maps the tokens the server refuses to the error it answers.
+	refused map[string]string
 }
 
 func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 	t.Helper()
 
-	s := &clientServer{replies: replies}
+	s := &clientServer{replies: replies, refused: map[string]string{}}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -59,6 +63,9 @@ func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 			body:          string(body),
 		})
 		reply, ok := s.replies[method]
+		if code := s.refused[strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")]; code != "" {
+			reply, ok = `{"ok":false,"error":"`+code+`"}`, true
+		}
 		s.mu.Unlock()
 
 		if !ok {
@@ -72,8 +79,37 @@ func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 	return s
 }
 
-func (s *clientServer) client(token string) *slack.Client {
-	return slack.NewClient(token).WithBaseURL(s.URL + "/")
+// expire makes the server answer token_expired to calls sent with token.
+func (s *clientServer) expire(token string) {
+	s.refuse(token, "token_expired")
+}
+
+// refuse makes the server answer code to calls sent with token.
+func (s *clientServer) refuse(token, code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.refused[token] = code
+}
+
+// methods returns the methods the server received, in order, and the token
+// each was sent with.
+func (s *clientServer) methods() []string {
+	calls := s.recorded()
+
+	methods := make([]string, len(calls))
+	for i, call := range calls {
+		methods[i] = call.method
+		if token := strings.TrimPrefix(call.authorization, "Bearer "); token != "" {
+			methods[i] += "(" + token + ")"
+		}
+	}
+
+	return methods
+}
+
+func (s *clientServer) client(token tokens.AppConfigurationToken) *slack.Client {
+	return slack.NewClient().WithAppConfigurationToken(token).WithBaseURL(s.URL + "/")
 }
 
 func (s *clientServer) recorded() []clientCall {
@@ -270,10 +306,10 @@ func TestClientRefreshToken(t *testing.T) {
 	t.Parallel()
 
 	s := newClientServer(t, map[string]string{
-		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":1700043200}`,
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":4102444800}`,
 		"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
 	})
-	c := slack.NewClientFromRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+	c := slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
 
 	for range 2 {
 		if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
@@ -309,6 +345,186 @@ func TestClientRefreshToken(t *testing.T) {
 	}
 }
 
+// A rotated token is rotated again when it is about to expire.
+func TestClientRefreshTokenExpiring(t *testing.T) {
+	t.Parallel()
+
+	soon := time.Now().Add(time.Minute).Unix()
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": fmt.Sprintf(`{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":%d}`, soon),
+		"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
+	})
+	c := slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	for range 2 {
+		if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	want := "tooling.tokens.rotate,apps.manifest.export(xoxe-new),tooling.tokens.rotate,apps.manifest.export(xoxe-new)"
+	if got := strings.Join(s.methods(), ","); got != want {
+		t.Fatalf("calls = %s, want %s", got, want)
+	}
+	if form, err := url.ParseQuery(s.recorded()[2].body); err != nil || form.Get("refresh_token") != "refresh-2" {
+		t.Errorf("the second rotation sent %q, want the rotated refresh token", s.recorded()[2].body)
+	}
+}
+
+// With both tokens, the client uses the app configuration token until
+// Slack refuses it, then rotates the refresh token and calls again. Slack
+// answers token_revoked for a token a rotation replaced.
+func TestClientTokenRefused(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []string{"token_expired", "token_revoked"} {
+		t.Run(code, func(t *testing.T) {
+			t.Parallel()
+
+			s := newClientServer(t, map[string]string{
+				"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":4102444800}`,
+				"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
+			})
+			s.refuse("xoxe-old", code)
+			c := slack.NewClient().WithAppConfigurationToken("xoxe-old").WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+			if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
+				t.Fatal(err)
+			}
+
+			want := "apps.manifest.export(xoxe-old),tooling.tokens.rotate,apps.manifest.export(xoxe-new)"
+			if got := strings.Join(s.methods(), ","); got != want {
+				t.Fatalf("calls = %s, want %s", got, want)
+			}
+		})
+	}
+}
+
+// When Slack refuses the token and no other can be had, the error says
+// both.
+func TestClientTokenRefusedAndNoOther(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":false,"error":"invalid_refresh_token"}`,
+	})
+	s.refuse("xoxe-old", "token_revoked")
+	c := slack.NewClient().WithAppConfigurationToken("xoxe-old").WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	_, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+
+	var slackErr *slack.ErrorResponse
+	if !errors.As(err, &slackErr) || slackErr.Error() != "token_revoked" {
+		t.Fatalf("export returned %v, want token_revoked first", err)
+	}
+	if !strings.Contains(err.Error(), "getting another token failed: invalid_refresh_token") {
+		t.Errorf("error = %q, want why no other token could be had", err)
+	}
+}
+
+// Other errors are not a reason to rotate.
+func TestClientTokenInvalid(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, nil)
+	s.refuse("xoxe-old", "invalid_auth")
+	c := slack.NewClient().WithAppConfigurationToken("xoxe-old").WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err == nil {
+		t.Fatal("export succeeded, want invalid_auth")
+	}
+	if got := strings.Join(s.methods(), ","); got != "apps.manifest.export(xoxe-old)" {
+		t.Errorf("calls = %s", got)
+	}
+}
+
+// Without a refresh token, an expired token is Slack's error to return.
+func TestClientTokenExpiredWithoutRefreshToken(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, nil)
+	s.expire("xoxe-old")
+
+	_, err := s.client("xoxe-old").AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+
+	var slackErr *slack.ErrorResponse
+	if !errors.As(err, &slackErr) || slackErr.Error() != "token_expired" {
+		t.Fatalf("export returned %v, want token_expired", err)
+	}
+	if got := strings.Join(s.methods(), ","); got != "apps.manifest.export(xoxe-old)" {
+		t.Errorf("calls = %s", got)
+	}
+}
+
+// The client calls again once, not until Slack takes a token.
+func TestClientTokenExpiredAgain(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":4102444800}`,
+	})
+	s.expire("xoxe-old")
+	s.expire("xoxe-new")
+	c := slack.NewClient().WithAppConfigurationToken("xoxe-old").WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	_, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+
+	var slackErr *slack.ErrorResponse
+	if !errors.As(err, &slackErr) || slackErr.Error() != "token_expired" {
+		t.Fatalf("export returned %v, want token_expired", err)
+	}
+	want := "apps.manifest.export(xoxe-old),tooling.tokens.rotate,apps.manifest.export(xoxe-new)"
+	if got := strings.Join(s.methods(), ","); got != want {
+		t.Errorf("calls = %s, want %s", got, want)
+	}
+}
+
+// Terraform calls the provider from several goroutines. A refresh token
+// works once, so only one of them may rotate it.
+func TestClientRefreshTokenConcurrently(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":4102444800}`,
+		"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
+	})
+	c := slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+
+	rotations := 0
+	for _, call := range s.recorded() {
+		if call.method == "tooling.tokens.rotate" {
+			rotations++
+		}
+	}
+	if rotations != 1 {
+		t.Errorf("rotated %d times, want 1", rotations)
+	}
+}
+
+func TestClientNoToken(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, nil)
+
+	_, err := s.client("").AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+	if err == nil || !strings.Contains(err.Error(), "no refresh token") {
+		t.Fatalf("export returned %v, want an error saying there is no refresh token", err)
+	}
+	if calls := s.recorded(); len(calls) != 0 {
+		t.Errorf("%d calls reached Slack without a token", len(calls))
+	}
+}
+
 func TestClientRefreshTokenFailure(t *testing.T) {
 	t.Parallel()
 
@@ -320,7 +536,7 @@ func TestClientRefreshTokenFailure(t *testing.T) {
 		"apps.manifest.delete":  `{"ok":true}`,
 	})
 	newClient := func() *slack.Client {
-		return slack.NewClientFromRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+		return slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
 	}
 	ctx := t.Context()
 
@@ -364,7 +580,7 @@ func TestToolingTokensRotateTimestamps(t *testing.T) {
 	t.Parallel()
 
 	s := newClientServer(t, map[string]string{
-		"tooling.tokens.rotate": `{"ok":true,"token":"t","refresh_token":"r","iat":1700000000,"exp":1700043200}`,
+		"tooling.tokens.rotate": `{"ok":true,"token":"t","refresh_token":"r","iat":1700000000,"exp":4102444800}`,
 	})
 
 	got, err := s.client("").ToolingTokensRotate(t.Context(), "refresh")
@@ -375,8 +591,26 @@ func TestToolingTokensRotateTimestamps(t *testing.T) {
 	if !got.IssuedAt.Time().Equal(time.Unix(1700000000, 0)) {
 		t.Errorf("IssuedAt = %v", got.IssuedAt.Time())
 	}
-	if !got.ExpiresAt.Time().Equal(time.Unix(1700043200, 0)) {
+	if !got.ExpiresAt.Time().Equal(time.Unix(4102444800, 0)) {
 		t.Errorf("ExpiresAt = %v", got.ExpiresAt.Time())
+	}
+}
+
+// The tokens decode from Slack's reply as the plain strings they are.
+func TestToolingTokensRotateTokens(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, map[string]string{
+		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe.xoxp-new","refresh_token":"xoxe-new"}`,
+	})
+
+	got, err := s.client("").ToolingTokensRotate(t.Context(), "refresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(got.Token) != "xoxe.xoxp-new" || string(got.RefreshToken) != "xoxe-new" {
+		t.Errorf("decoded %q and %q", string(got.Token), string(got.RefreshToken))
 	}
 }
 
@@ -397,7 +631,7 @@ func TestClientInvalidResponse(t *testing.T) {
 	}))
 	t.Cleanup(s.Close)
 
-	_, err := slack.NewClient("token").WithBaseURL(s.URL+"/").AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: "A1"})
+	_, err := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL(s.URL+"/").AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: "A1"})
 	if err == nil {
 		t.Fatal("delete succeeded on a reply that is not JSON")
 	}
@@ -410,7 +644,7 @@ func TestClientUnreachable(t *testing.T) {
 	base := s.URL + "/"
 	s.Close()
 
-	c := slack.NewClient("token").WithBaseURL(base)
+	c := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL(base)
 	ctx := context.Background()
 
 	if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{}); err == nil {
@@ -435,7 +669,7 @@ func TestClientInvalidBaseURL(t *testing.T) {
 
 	// A control character makes the URL unparseable, so building the
 	// request fails before anything is sent.
-	c := slack.NewClient("token").WithBaseURL("http://\x7f/")
+	c := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL("http://\x7f/")
 	ctx := t.Context()
 
 	if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{}); err == nil {
@@ -474,7 +708,7 @@ func clientLogServer(t *testing.T) *clientServer {
 
 	return newClientServer(t, map[string]string{
 		"tooling.tokens.rotate": `{"ok":true,"token":"` + clientLogSecrets["rotated app configuration token"] +
-			`","refresh_token":"` + clientLogSecrets["rotated refresh token"] + `","iat":1700000000,"exp":1700043200}`,
+			`","refresh_token":"` + clientLogSecrets["rotated refresh token"] + `","iat":1700000000,"exp":4102444800}`,
 		"apps.manifest.create": `{"ok":true,"app_id":"A1","credentials":{"client_id":"cid",` +
 			`"client_secret":"` + clientLogSecrets["client secret"] +
 			`","verification_token":"` + clientLogSecrets["verification token"] +
@@ -496,8 +730,8 @@ func clientLogDrive(t *testing.T) string {
 	s := clientLogServer(t)
 
 	clients := []*slack.Client{
-		slack.NewClientFromRefreshToken(clientLogSecrets["refresh token passed in"]).WithBaseURL(s.URL + "/"),
-		s.client(clientLogSecrets["app configuration token"]),
+		slack.NewClient().WithRefreshToken(tokens.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
+		s.client(tokens.AppConfigurationToken(clientLogSecrets["app configuration token"])),
 	}
 	for _, c := range clients {
 		if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{Manifest: `{}`}); err != nil {
@@ -567,8 +801,8 @@ func TestClientLogsWhatHappened(t *testing.T) {
 
 	wants := []map[string]any{
 		{"@level": "debug", "@message": "Calling a Slack API method", "method": "tooling.tokens.rotate"},
-		{"@message": "Slack API method succeeded", "method": "tooling.tokens.rotate", "expires_at": "2023-11-15T10:13:20Z"},
-		{"@message": "Rotated the app configuration token", "expires_at": "2023-11-15T10:13:20Z"},
+		{"@message": "Slack API method succeeded", "method": "tooling.tokens.rotate", "expires_at": "2100-01-01T00:00:00Z"},
+		{"@message": "Rotated the app configuration token", "expires_at": "2100-01-01T00:00:00Z"},
 		{"@message": "Calling a Slack API method", "method": "apps.manifest.create"},
 		{"@message": "Slack API method succeeded", "method": "apps.manifest.create", "app_id": "A1"},
 		{"@message": "Slack API method returned an error", "method": "apps.manifest.update", "error": "invalid_manifest"},

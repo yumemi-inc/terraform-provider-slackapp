@@ -5,9 +5,14 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
 )
 
 type AppsManifestCreateRequest struct {
@@ -39,21 +44,7 @@ func (c *Client) AppsManifestCreate(
 	ctx context.Context,
 	request AppsManifestCreateRequest,
 ) (*AppsManifestCreateResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.create", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestCreateResponse](ctx, "apps.manifest.create", httpResponse)
+	return callMethod[AppsManifestCreateResponse](ctx, c, "apps.manifest.create", &request)
 }
 
 type AppsManifestUpdateRequest struct {
@@ -79,21 +70,7 @@ func (c *Client) AppsManifestUpdate(
 	ctx context.Context,
 	request AppsManifestUpdateRequest,
 ) (*AppsManifestUpdateResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.update", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestUpdateResponse](ctx, "apps.manifest.update", httpResponse)
+	return callMethod[AppsManifestUpdateResponse](ctx, c, "apps.manifest.update", &request)
 }
 
 type AppsManifestExportRequest struct {
@@ -119,21 +96,7 @@ func (c *Client) AppsManifestExport(
 	ctx context.Context,
 	request AppsManifestExportRequest,
 ) (*AppsManifestExportResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.export", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestExportResponse](ctx, "apps.manifest.export", httpResponse)
+	return callMethod[AppsManifestExportResponse](ctx, c, "apps.manifest.export", &request)
 }
 
 type AppsManifestDeleteRequest struct {
@@ -156,29 +119,15 @@ func (c *Client) AppsManifestDelete(
 	ctx context.Context,
 	request AppsManifestDeleteRequest,
 ) (*AppsManifestDeleteResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.delete", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestDeleteResponse](ctx, "apps.manifest.delete", httpResponse)
+	return callMethod[AppsManifestDeleteResponse](ctx, c, "apps.manifest.delete", &request)
 }
 
 type ToolingTokensRotateResponse struct {
-	Ok           bool          `json:"ok"`
-	Token        string        `json:"token"`
-	RefreshToken string        `json:"refresh_token"`
-	IssuedAt     UnixTimestamp `json:"iat"`
-	ExpiresAt    UnixTimestamp `json:"exp"`
+	Ok           bool                         `json:"ok"`
+	Token        tokens.AppConfigurationToken `json:"token"`
+	RefreshToken tokens.RefreshToken          `json:"refresh_token"`
+	IssuedAt     UnixTimestamp                `json:"iat"`
+	ExpiresAt    UnixTimestamp                `json:"exp"`
 }
 
 func (r ToolingTokensRotateResponse) IsOk() bool {
@@ -196,10 +145,10 @@ func (r ToolingTokensRotateResponse) logFields() map[string]any {
 
 func (c *Client) ToolingTokensRotate(
 	ctx context.Context,
-	refreshToken string,
+	refreshToken tokens.RefreshToken,
 ) (*ToolingTokensRotateResponse, error) {
 	values := url.Values{}
-	values.Set("refresh_token", refreshToken)
+	values.Set("refresh_token", string(refreshToken))
 
 	httpRequest, err := c.createFormRequest(ctx, http.MethodPost, "tooling.tokens.rotate", values)
 	if err != nil {
@@ -212,4 +161,48 @@ func (c *Client) ToolingTokensRotate(
 	}
 
 	return readJSONResponse[ToolingTokensRotateResponse](ctx, "tooling.tokens.rotate", httpResponse)
+}
+
+// callMethod calls methodName with the client's app configuration token.
+// When Slack refuses the token as expired or revoked, it gets another and
+// calls once more.
+func callMethod[T response](ctx context.Context, c *Client, methodName string, request any) (*T, error) {
+	token, err := c.tokens.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := callMethodWithToken[T](ctx, c, methodName, token, request)
+	if !isTokenRefusedError(err) || !c.tokens.MarkAsRefused(token) {
+		return response, err
+	}
+
+	tflog.Debug(ctx, "Slack refused the app configuration token, refreshing token.", map[string]any{"method": methodName})
+
+	token, refreshErr := c.tokens.Get(ctx)
+	if refreshErr != nil {
+		return nil, fmt.Errorf("%w, and getting another token failed: %w", err, refreshErr)
+	}
+
+	return callMethodWithToken[T](ctx, c, methodName, token, request)
+}
+
+func callMethodWithToken[T response](
+	ctx context.Context,
+	c *Client,
+	methodName string,
+	token tokens.AppConfigurationToken,
+	request any,
+) (*T, error) {
+	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, methodName, token, request)
+	if err != nil {
+		return nil, err
+	}
+
+	httpResponse, err := c.httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return readJSONResponse[T](ctx, methodName, httpResponse)
 }

@@ -37,6 +37,8 @@ type fakeSlack struct {
 	authorizations map[string]string
 	//declscope:private
 	refreshTokens []string
+	//declscope:private
+	usedRefreshTokens map[string]bool
 }
 
 // fakeSlackAppID is the ID the fake gives the nth app it creates, counting
@@ -56,6 +58,8 @@ func newFakeSlack(t *testing.T) *fakeSlack {
 		calls:          map[string]int{},
 		failures:       map[string]map[string]any{},
 		authorizations: map[string]string{},
+
+		usedRefreshTokens: map[string]bool{},
 	}
 	f.server = httptest.NewServer(http.HandlerFunc(f.serveHTTP))
 	t.Cleanup(f.server.Close)
@@ -184,7 +188,8 @@ func (f *fakeSlack) editManifest(t *testing.T, appID string, edit func(map[strin
 }
 
 // rotate answers tooling.tokens.rotate: each refresh token gives the next
-// access token, and a new refresh token.
+// access token, and a new refresh token. Like Slack, it voids a refresh
+// token once it is used.
 func (f *fakeSlack) rotate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		f.reply(w, map[string]any{"ok": false, "error": "invalid_form"})
@@ -204,13 +209,21 @@ func (f *fakeSlack) rotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refreshToken := r.PostForm.Get("refresh_token")
+	if f.usedRefreshTokens[refreshToken] {
+		f.reply(w, map[string]any{"ok": false, "error": "invalid_refresh_token"})
+
+		return
+	}
+	f.usedRefreshTokens[refreshToken] = true
+
 	n := len(f.refreshTokens)
 	f.reply(w, map[string]any{
 		"ok":            true,
 		"token":         fmt.Sprintf("xoxe.xoxp-rotated-%d", n),
 		"refresh_token": fmt.Sprintf("xoxe-refresh-%d", n),
 		"iat":           1700000000,
-		"exp":           1700043200,
+		"exp":           4102444800,
 	})
 }
 
