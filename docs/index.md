@@ -19,3 +19,12 @@ description: |-
 - `app_configuration_token` (String, Sensitive) App configuration token for the Slack Workspace.
 - `base_url` (String) Base URL of the Slack API. Defaults to `https://slack.com/api/`.
 - `refresh_token` (String, Sensitive) Refresh token for the Slack Workspace.
+- `token_store` (Attributes) Where to keep the tokens that each rotation of the refresh token returns. Slack voids a refresh token once it is used, so without a store the configured refresh token works for one run only. Set exactly one of `file` and `command`. Can also be set with the `SLACK_TOKEN_STORE_FILE` or `SLACK_TOKEN_STORE_COMMAND` environment variable. (see [below for nested schema](#nestedatt--token_store))
+
+<a id="nestedatt--token_store"></a>
+### Nested Schema for `token_store`
+
+Optional:
+
+- `command` (List of String) A program, and its arguments, that keeps the tokens anywhere it likes, such as a secret manager. The provider runs it with `get` added, and reads what it last kept from stdout (nothing when it keeps nothing yet). It runs it with `store` added, and writes the new tokens to stdin. The program must read all of stdin, and must never print the tokens to stderr: the provider shows stderr when the program fails. The provider takes no lock: the program must keep two runs from rotating at once.
+- `file` (String) Path of a file to keep the tokens in. Use it where the disk outlives a run, such as on an Atlantis server. Runs that share the file take turns through a lock file beside it.

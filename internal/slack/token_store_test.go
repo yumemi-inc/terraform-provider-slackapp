@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
 )
 
 // tokenStoreMemory is a slack.TokenStore that keeps the record in memory,
@@ -352,6 +354,30 @@ func TestTokenStoreCancelled(t *testing.T) {
 	}
 	if got := store.record(t); got.RefreshToken != "refresh-2" {
 		t.Errorf("stored %+v, want the rotated tokens", got)
+	}
+}
+
+// Clients that share one token file, as separate processes do, rotate once
+// between them.
+func TestTokenStoreSharedFile(t *testing.T) {
+	t.Parallel()
+
+	s := tokenStoreServer(t)
+	path := filepath.Join(t.TempDir(), "tokens.json")
+
+	var wg sync.WaitGroup
+	for range 8 {
+		c := slack.NewClient().WithRefreshToken("refresh-1").WithTokenStore(tokenstore.NewFile(path)).WithBaseURL(s.URL + "/")
+		wg.Go(func() {
+			if err := tokenStoreExport(t, c); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := s.rotated(); len(got) != 1 {
+		t.Errorf("rotated %q, want once", got)
 	}
 }
 

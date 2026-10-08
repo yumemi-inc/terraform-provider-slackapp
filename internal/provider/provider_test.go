@@ -1,8 +1,13 @@
 package provider_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -27,7 +32,10 @@ var providerFactories = map[string]func() (tfprotov6.ProviderServer, error){
 func providerUnsetEnvironment(t *testing.T) {
 	t.Helper()
 
-	for _, name := range []string{"SLACK_APP_CONFIGURATION_TOKEN", "SLACK_REFRESH_TOKEN", "SLACK_BASE_URL"} {
+	for _, name := range []string{
+		"SLACK_APP_CONFIGURATION_TOKEN", "SLACK_REFRESH_TOKEN", "SLACK_BASE_URL",
+		"SLACK_TOKEN_STORE_FILE", "SLACK_TOKEN_STORE_COMMAND",
+	} {
 		t.Setenv(name, "")
 	}
 }
@@ -65,7 +73,7 @@ func TestAccProvider_noToken(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      providerResource(""),
-				ExpectError: regexp.MustCompile(`either app configuration token or refresh token must be\s+provided`),
+				ExpectError: regexp.MustCompile(`either app configuration token, refresh token or token\s+store must be provided`),
 			},
 		},
 	})
@@ -113,12 +121,128 @@ func TestAccProvider_attributesOverEnvironment(t *testing.T) {
 	})
 }
 
-// With only a refresh token, the provider rotates it for an app
-// configuration token before its first call.
-func TestAccProvider_refreshToken(t *testing.T) {
+// providerCheckRotations checks the refresh tokens the provider rotated,
+// in order.
+func providerCheckRotations(f *fakeSlack, want ...string) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		if got := f.rotatedRefreshTokens(); strings.Join(got, ",") != strings.Join(want, ",") {
+			return fmt.Errorf("tooling.tokens.rotate was called with %q, want %q", got, want)
+		}
+		if got := f.authorization("apps.manifest.create"); !strings.HasPrefix(got, "Bearer xoxe.xoxp-rotated-") {
+			return fmt.Errorf("apps.manifest.create sent Authorization %q, want a rotated token", got)
+		}
+
+		return nil
+	}
+}
+
+// With a refresh token and a token file, the provider rotates the refresh
+// token once and keeps the result. Terraform configures the provider anew
+// for each plan, apply and destroy, and the fake voids a refresh token once
+// it is used, so every later run must start from the file.
+func TestAccProvider_tokenStoreFile(t *testing.T) {
 	providerUnsetEnvironment(t)
 
 	f := newFakeSlack(t)
+	file := filepath.Join(t.TempDir(), "state", "tokens.json")
+	config := providerResource(fmt.Sprintf(`
+  base_url      = %q
+  refresh_token = "xoxe-refresh-0"
+  token_store   = { file = %q }
+`, f.baseURL(), file))
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  providerCheckRotations(f, "xoxe-refresh-0"),
+			},
+		},
+	})
+
+	// A second run, as after a separate plan, still works with the voided
+	// refresh token in its configuration.
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  providerCheckRotations(f, "xoxe-refresh-0"),
+			},
+		},
+	})
+
+	// A run after the stored token expired, as on the next day, rotates the
+	// stored refresh token, not the configured one.
+	providerExpireStoredToken(t, file)
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  providerCheckRotations(f, "xoxe-refresh-0", "xoxe-refresh-1"),
+			},
+		},
+	})
+}
+
+// providerExpireStoredToken makes the token in a token file look expired.
+func providerExpireStoredToken(t *testing.T, file string) {
+	t.Helper()
+
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var record map[string]any
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	record["expires_at"] = 1700000000
+
+	if data, err = json.Marshal(record); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The token store can come from the environment, as can the refresh token.
+func TestAccProvider_tokenStoreFileFromEnvironment(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+	t.Setenv("SLACK_BASE_URL", f.baseURL())
+	t.Setenv("SLACK_REFRESH_TOKEN", "xoxe-refresh-0")
+	t.Setenv("SLACK_TOKEN_STORE_FILE", filepath.Join(t.TempDir(), "tokens.json"))
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: providerResource(""),
+				Check:  providerCheckRotations(f, "xoxe-refresh-0"),
+			},
+		},
+	})
+}
+
+// The token_store attribute is taken whole, as the other attributes win
+// over their variables: with it set, neither variable is read, so a command
+// in the environment does not clash with a file in the attribute.
+func TestAccProvider_tokenStoreAttributeOverEnvironment(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+	file := filepath.Join(t.TempDir(), "tokens.json")
+	t.Setenv("SLACK_TOKEN_STORE_COMMAND", "/nonexistent/helper")
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: providerFactories,
@@ -128,18 +252,158 @@ func TestAccProvider_refreshToken(t *testing.T) {
 				Config: providerResource(fmt.Sprintf(`
   base_url      = %q
   refresh_token = "xoxe-refresh-0"
-`, f.baseURL())),
-				Check: func(*terraform.State) error {
-					rotated := f.rotatedRefreshTokens()
-					if len(rotated) == 0 || rotated[0] != "xoxe-refresh-0" {
-						return fmt.Errorf("tooling.tokens.rotate was called with %q, want the configured refresh token first", rotated)
-					}
-					if got := f.authorization("apps.manifest.create"); !strings.HasPrefix(got, "Bearer xoxe.xoxp-rotated-") {
-						return fmt.Errorf("apps.manifest.create sent Authorization %q, want a rotated token", got)
-					}
+  token_store   = { file = %q }
+`, f.baseURL(), file)),
+				Check: resource.ComposeTestCheckFunc(
+					providerCheckRotations(f, "xoxe-refresh-0"),
+					func(*terraform.State) error {
+						if _, err := os.Stat(file); err != nil {
+							return fmt.Errorf("the token file was not written: %w", err)
+						}
 
-					return nil
+						return nil
+					},
+				),
+			},
+		},
+	})
+}
+
+// providerTokenHelper writes a token store helper that keeps the tokens in
+// a file, and returns its path.
+func providerTokenHelper(t *testing.T) string {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("the helper is a shell script")
+	}
+
+	dir := t.TempDir()
+	helper := filepath.Join(dir, "helper.sh")
+	script := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+  get) cat %[1]q 2>/dev/null || true ;;
+  store) cat > %[1]q ;;
+  *) echo "unknown operation $1" >&2; exit 2 ;;
+esac
+`, filepath.Join(dir, "tokens.json"))
+	if err := os.WriteFile(helper, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	return helper
+}
+
+func TestAccProvider_tokenStoreCommand(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+	helper := providerTokenHelper(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: providerResource(fmt.Sprintf(`
+  base_url      = %q
+  refresh_token = "xoxe-refresh-0"
+  token_store   = { command = [%q] }
+`, f.baseURL(), helper)),
+				Check: providerCheckRotations(f, "xoxe-refresh-0"),
+			},
+		},
+	})
+}
+
+// With the helper from the environment, and no token in the configuration,
+// the provider starts from what the helper keeps.
+func TestAccProvider_tokenStoreCommandFromEnvironment(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+	helper := providerTokenHelper(t)
+	t.Setenv("SLACK_BASE_URL", f.baseURL())
+	t.Setenv("SLACK_TOKEN_STORE_COMMAND", helper)
+
+	seed := exec.CommandContext(t.Context(), helper, "store")
+	seed.Stdin = strings.NewReader(`{"version":1,"refresh_token":"xoxe-refresh-kept"}`)
+	if out, err := seed.CombinedOutput(); err != nil {
+		t.Fatalf("seeding the helper: %v: %s", err, out)
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		CheckDestroy:             applicationResourceCheckDestroyed(f),
+		Steps: []resource.TestStep{
+			{
+				Config: providerResource(""),
+				Check:  providerCheckRotations(f, "xoxe-refresh-kept"),
+			},
+		},
+	})
+}
+
+func TestAccProvider_tokenStoreInvalid(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	f := newFakeSlack(t)
+
+	tests := map[string]struct {
+		attributes string
+		want       *regexp.Regexp
+	}{
+		"both": {
+			attributes: `token_store = { file = "tokens.json", command = ["helper"] }`,
+			want:       regexp.MustCompile(`(?s)Invalid Attribute Combination.*command`),
+		},
+		"neither": {
+			attributes: `token_store = {}`,
+			want:       regexp.MustCompile(`(?s)Invalid Attribute Combination.*command`),
+		},
+		"empty command": {
+			attributes: `token_store = { command = [] }`,
+			want:       regexp.MustCompile(`(?s)Invalid Attribute Value.*at least 1`),
+		},
+		"empty program": {
+			attributes: `token_store = { command = [""] }`,
+			want:       regexp.MustCompile(`(?s)Invalid Attribute Value Length.*at least 1`),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: providerFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: providerResource(fmt.Sprintf(`
+  base_url      = %q
+  refresh_token = "xoxe-refresh-0"
+  %s
+`, f.baseURL(), tt.attributes)),
+						ExpectError: tt.want,
+					},
 				},
+			})
+		})
+	}
+}
+
+// The environment may name a file or a command, but not both.
+func TestAccProvider_tokenStoreEnvironmentConflict(t *testing.T) {
+	providerUnsetEnvironment(t)
+
+	t.Setenv("SLACK_REFRESH_TOKEN", "xoxe-refresh-0")
+	t.Setenv("SLACK_TOKEN_STORE_FILE", "tokens.json")
+	t.Setenv("SLACK_TOKEN_STORE_COMMAND", "helper")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: providerFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      providerResource(""),
+				ExpectError: regexp.MustCompile(`either a file or a command, not both`),
 			},
 		},
 	})
