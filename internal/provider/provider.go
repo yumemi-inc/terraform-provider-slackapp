@@ -29,21 +29,9 @@ import (
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
-	baseURL := os.Getenv("SLACK_BASE_URL")
-	appConfigurationToken := os.Getenv("SLACK_APP_CONFIGURATION_TOKEN")
-	refreshToken := os.Getenv("SLACK_REFRESH_TOKEN")
-
-	if !d.BaseURL.IsNull() {
-		baseURL = d.BaseURL.ValueString()
-	}
-
-	if !d.AppConfigurationToken.IsNull() {
-		appConfigurationToken = d.AppConfigurationToken.ValueString()
-	}
-
-	if !d.RefreshToken.IsNull() {
-		refreshToken = d.RefreshToken.ValueString()
-	}
+	baseURL := stringOrEnvironment(d.BaseURL, "SLACK_BASE_URL")
+	appConfigurationToken := stringOrEnvironment(d.AppConfigurationToken, "SLACK_APP_CONFIGURATION_TOKEN")
+	refreshToken := stringOrEnvironment(d.RefreshToken, "SLACK_REFRESH_TOKEN")
 
 	var client *slack.Client
 	if refreshToken == "" {
@@ -61,6 +49,16 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 	}
 
 	return client, nil
+}
+
+// stringOrEnvironment returns the attribute's value, or the environment
+// variable name when the attribute is not set.
+func stringOrEnvironment(attribute types.String, name string) string {
+	if attribute.IsNull() {
+		return os.Getenv(name)
+	}
+
+	return attribute.ValueString()
 }
 
 type Model struct {
