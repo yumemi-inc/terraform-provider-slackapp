@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 // storeMemory is a tokens.Store that keeps the record in memory, and
@@ -402,7 +402,7 @@ func TestStoreSharedFile(t *testing.T) {
 	for range 8 {
 		s := tokens.NewSource(r.rotate)
 		s.SetRefreshToken("refresh-1")
-		s.SetStore(tokenstore.NewFile(path))
+		s.SetStore(storage.NewFile(path))
 
 		wg.Go(func() {
 			if _, err := s.Get(t.Context()); err != nil {

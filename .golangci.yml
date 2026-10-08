@@ -26,14 +26,14 @@ linters:
     - unused
     - usetesting
   settings:
-    # Keep the layers apart. internal/slack, its subpackages,
-    # internal/manifest and internal/tokenstore know nothing of the plugin
-    # framework or of internal/provider; only terraform-plugin-log is allowed
-    # there, so that the Slack client's requests show in TF_LOG. Of
-    # internal/provider, only the package itself talks to Slack.
-    # internal/tokenstore keeps bytes it does not read, so it knows nothing
-    # of internal/slack or internal/slack/tokens either. (internal/slack/tokens
-    # cannot import internal/slack: the import would be a cycle.)
+    # Keep the layers apart. internal/slack, its subpackages and
+    # internal/manifest know nothing of the plugin framework or of
+    # internal/provider; only terraform-plugin-log is allowed there, so that
+    # the Slack client's requests show in TF_LOG. Of internal/provider, only
+    # the package itself talks to Slack. internal/slack/tokens/storage keeps
+    # bytes it does not read, so it knows nothing of internal/slack or
+    # internal/slack/tokens either. (internal/slack/tokens cannot import
+    # internal/slack: the import would be a cycle.)
     depguard:
       rules:
         framework-free:
@@ -41,22 +41,23 @@ linters:
           files:
             - "**/internal/slack/**/*.go"
             - "**/internal/manifest/*.go"
-            - "**/internal/tokenstore/*.go"
           allow:
             - github.com/hashicorp/terraform-plugin-log
           deny:
             - pkg: github.com/hashicorp/terraform-plugin
-              desc: internal/slack, its subpackages, internal/manifest and internal/tokenstore know nothing of the plugin framework; adapt them in internal/provider
+              desc: internal/slack, its subpackages and internal/manifest know nothing of the plugin framework; adapt them in internal/provider
             - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/provider
-              desc: internal/provider builds on internal/slack, internal/manifest and internal/tokenstore, not the other way round
-        tokenstore-opaque:
+              desc: internal/provider builds on internal/slack and internal/manifest, not the other way round
+        storage-opaque:
           list-mode: lax
           files:
-            - "**/internal/tokenstore/*.go"
+            - "**/internal/slack/tokens/storage/*.go"
           deny:
-            # A prefix: internal/slack/tokens is denied too.
-            - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/slack
-              desc: internal/tokenstore keeps the bytes internal/slack/tokens gives it, and must not depend on what they mean
+            # Exact, with $: a prefix would deny the package to its own tests.
+            - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/slack$
+              desc: internal/slack/tokens/storage keeps the bytes internal/slack/tokens gives it, and must not depend on what they mean
+            - pkg: github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens$
+              desc: internal/slack/tokens/storage keeps the bytes internal/slack/tokens gives it, and must not depend on what they mean
         provider-subpackages-offline:
           list-mode: lax
           files:

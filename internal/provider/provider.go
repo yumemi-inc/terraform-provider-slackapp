@@ -35,7 +35,7 @@ import (
 
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack"
 	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens"
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 func configureSlackClient(d Model) (*slack.Client, error) {
@@ -92,9 +92,9 @@ func configureTokenStore(d Model) (tokens.Store, error) {
 		// environment.
 		return nil, errors.New("a token store must be either a file or a command, not both")
 	case file != "":
-		return tokenstore.NewFile(file), nil
+		return storage.NewFile(file), nil
 	case len(command) > 0:
-		return tokenstore.NewCommand(command), nil
+		return storage.NewCommand(command), nil
 	default:
 		return nil, nil
 	}

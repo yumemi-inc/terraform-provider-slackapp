@@ -2,7 +2,7 @@
 
 //declscope:namespace file
 
-package tokenstore
+package storage
 
 import (
 	"errors"

@@ -1,4 +1,4 @@
-package tokenstore_test
+package storage_test
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ymm-oss/terraform-provider-slackapp/internal/tokenstore"
+	"github.com/ymm-oss/terraform-provider-slackapp/internal/slack/tokens/storage"
 )
 
 // commandHelper writes a helper script with body, and returns its path.
@@ -40,7 +40,7 @@ case "$2" in
   store) cat > %[1]q ;;
 esac
 `, file))
-	c := tokenstore.NewCommand([]string{helper, "--profile=test"})
+	c := storage.NewCommand([]string{helper, "--profile=test"})
 	ctx := t.Context()
 
 	got, err := c.Load(ctx)
@@ -70,7 +70,7 @@ func TestCommandFailure(t *testing.T) {
 	t.Parallel()
 
 	helper := commandHelper(t, `echo xoxe-secret; echo "no access to the vault" >&2; exit 3`)
-	c := tokenstore.NewCommand([]string{helper})
+	c := storage.NewCommand([]string{helper})
 
 	_, err := c.Load(t.Context())
 	if err == nil {
@@ -91,7 +91,7 @@ func TestCommandFailure(t *testing.T) {
 func TestCommandFailureWithoutStderr(t *testing.T) {
 	t.Parallel()
 
-	c := tokenstore.NewCommand([]string{commandHelper(t, "exit 1")})
+	c := storage.NewCommand([]string{commandHelper(t, "exit 1")})
 
 	if _, err := c.Load(t.Context()); err == nil || !strings.HasSuffix(err.Error(), "exit status 1") {
 		t.Errorf("Load returned %v", err)
@@ -101,7 +101,7 @@ func TestCommandFailureWithoutStderr(t *testing.T) {
 func TestCommandLongStderr(t *testing.T) {
 	t.Parallel()
 
-	c := tokenstore.NewCommand([]string{commandHelper(t, `head -c 5000 /dev/zero | tr '\0' x >&2; exit 1`)})
+	c := storage.NewCommand([]string{commandHelper(t, `head -c 5000 /dev/zero | tr '\0' x >&2; exit 1`)})
 
 	_, err := c.Load(t.Context())
 	if err == nil || !strings.HasSuffix(err.Error(), "...") || len(err.Error()) > 1200 {
@@ -112,7 +112,7 @@ func TestCommandLongStderr(t *testing.T) {
 func TestCommandEmpty(t *testing.T) {
 	t.Parallel()
 
-	if _, err := tokenstore.NewCommand(nil).Load(t.Context()); err == nil {
+	if _, err := storage.NewCommand(nil).Load(t.Context()); err == nil {
 		t.Error("Load ran an empty command")
 	}
 }
