@@ -19,6 +19,8 @@ type response interface {
 
 //declscope:shared
 func readJSONResponse[T response](ctx context.Context, methodName string, httpResponse *http.Response) (*T, error) {
+	defer func() { _ = httpResponse.Body.Close() }()
+
 	responseBody, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		return nil, err
