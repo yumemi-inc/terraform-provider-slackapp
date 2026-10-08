@@ -16,13 +16,13 @@ const clientDefaultBaseURL = "https://slack.com/api/"
 
 type Client struct {
 	baseURL               string
-	appConfigurationToken *string
-	refreshToken          *string
+	appConfigurationToken *AppConfigurationToken
+	refreshToken          *RefreshToken
 	//declscope:shared
 	httpClient *http.Client
 }
 
-func NewClient(appConfigurationToken string) *Client {
+func NewClient(appConfigurationToken AppConfigurationToken) *Client {
 	return &Client{
 		baseURL:               clientDefaultBaseURL,
 		appConfigurationToken: &appConfigurationToken,
@@ -30,7 +30,7 @@ func NewClient(appConfigurationToken string) *Client {
 	}
 }
 
-func NewClientFromRefreshToken(refreshToken string) *Client {
+func NewClientFromRefreshToken(refreshToken RefreshToken) *Client {
 	return &Client{
 		baseURL:      clientDefaultBaseURL,
 		refreshToken: &refreshToken,
@@ -67,7 +67,7 @@ func (c *Client) createRequest(
 	tflog.Debug(ctx, "Calling a Slack API method", map[string]any{"method": methodName})
 
 	if c.appConfigurationToken != nil {
-		httpRequest.Header.Set("Authorization", "Bearer "+*c.appConfigurationToken)
+		httpRequest.Header.Set("Authorization", "Bearer "+string(*c.appConfigurationToken))
 	}
 
 	httpRequest.Header.Set("User-Agent", "ymm-oss/terraform-provider-slackapp")

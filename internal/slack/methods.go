@@ -174,11 +174,11 @@ func (c *Client) AppsManifestDelete(
 }
 
 type ToolingTokensRotateResponse struct {
-	Ok           bool          `json:"ok"`
-	Token        string        `json:"token"`
-	RefreshToken string        `json:"refresh_token"`
-	IssuedAt     UnixTimestamp `json:"iat"`
-	ExpiresAt    UnixTimestamp `json:"exp"`
+	Ok           bool                  `json:"ok"`
+	Token        AppConfigurationToken `json:"token"`
+	RefreshToken RefreshToken          `json:"refresh_token"`
+	IssuedAt     UnixTimestamp         `json:"iat"`
+	ExpiresAt    UnixTimestamp         `json:"exp"`
 }
 
 func (r ToolingTokensRotateResponse) IsOk() bool {
@@ -196,10 +196,10 @@ func (r ToolingTokensRotateResponse) logFields() map[string]any {
 
 func (c *Client) ToolingTokensRotate(
 	ctx context.Context,
-	refreshToken string,
+	refreshToken RefreshToken,
 ) (*ToolingTokensRotateResponse, error) {
 	values := url.Values{}
-	values.Set("refresh_token", refreshToken)
+	values.Set("refresh_token", string(refreshToken))
 
 	httpRequest, err := c.createFormRequest(ctx, http.MethodPost, "tooling.tokens.rotate", values)
 	if err != nil {

@@ -72,7 +72,7 @@ func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 	return s
 }
 
-func (s *clientServer) client(token string) *slack.Client {
+func (s *clientServer) client(token slack.AppConfigurationToken) *slack.Client {
 	return slack.NewClient(token).WithBaseURL(s.URL + "/")
 }
 
@@ -496,8 +496,8 @@ func clientLogDrive(t *testing.T) string {
 	s := clientLogServer(t)
 
 	clients := []*slack.Client{
-		slack.NewClientFromRefreshToken(clientLogSecrets["refresh token passed in"]).WithBaseURL(s.URL + "/"),
-		s.client(clientLogSecrets["app configuration token"]),
+		slack.NewClientFromRefreshToken(slack.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
+		s.client(slack.AppConfigurationToken(clientLogSecrets["app configuration token"])),
 	}
 	for _, c := range clients {
 		if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{Manifest: `{}`}); err != nil {
