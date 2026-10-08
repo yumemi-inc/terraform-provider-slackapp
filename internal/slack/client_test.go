@@ -73,7 +73,7 @@ func newClientServer(t *testing.T, replies map[string]string) *clientServer {
 }
 
 func (s *clientServer) client(token slack.AppConfigurationToken) *slack.Client {
-	return slack.NewClient(token).WithBaseURL(s.URL + "/")
+	return slack.NewClient().WithAppConfigurationToken(token).WithBaseURL(s.URL + "/")
 }
 
 func (s *clientServer) recorded() []clientCall {
@@ -273,7 +273,7 @@ func TestClientRefreshToken(t *testing.T) {
 		"tooling.tokens.rotate": `{"ok":true,"token":"xoxe-new","refresh_token":"refresh-2","iat":1700000000,"exp":1700043200}`,
 		"apps.manifest.export":  `{"ok":true,"manifest":{}}`,
 	})
-	c := slack.NewClientFromRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+	c := slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
 
 	for range 2 {
 		if _, err := c.AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"}); err != nil {
@@ -309,6 +309,20 @@ func TestClientRefreshToken(t *testing.T) {
 	}
 }
 
+func TestClientNoToken(t *testing.T) {
+	t.Parallel()
+
+	s := newClientServer(t, nil)
+
+	_, err := s.client("").AppsManifestExport(t.Context(), slack.AppsManifestExportRequest{AppID: "A1"})
+	if err == nil || !strings.Contains(err.Error(), "no refresh token") {
+		t.Fatalf("export returned %v, want an error saying there is no refresh token", err)
+	}
+	if calls := s.recorded(); len(calls) != 0 {
+		t.Errorf("%d calls reached Slack without a token", len(calls))
+	}
+}
+
 func TestClientRefreshTokenFailure(t *testing.T) {
 	t.Parallel()
 
@@ -320,7 +334,7 @@ func TestClientRefreshTokenFailure(t *testing.T) {
 		"apps.manifest.delete":  `{"ok":true}`,
 	})
 	newClient := func() *slack.Client {
-		return slack.NewClientFromRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
+		return slack.NewClient().WithRefreshToken("refresh-1").WithBaseURL(s.URL + "/")
 	}
 	ctx := t.Context()
 
@@ -397,7 +411,7 @@ func TestClientInvalidResponse(t *testing.T) {
 	}))
 	t.Cleanup(s.Close)
 
-	_, err := slack.NewClient("token").WithBaseURL(s.URL+"/").AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: "A1"})
+	_, err := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL(s.URL+"/").AppsManifestDelete(t.Context(), slack.AppsManifestDeleteRequest{AppID: "A1"})
 	if err == nil {
 		t.Fatal("delete succeeded on a reply that is not JSON")
 	}
@@ -410,7 +424,7 @@ func TestClientUnreachable(t *testing.T) {
 	base := s.URL + "/"
 	s.Close()
 
-	c := slack.NewClient("token").WithBaseURL(base)
+	c := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL(base)
 	ctx := context.Background()
 
 	if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{}); err == nil {
@@ -435,7 +449,7 @@ func TestClientInvalidBaseURL(t *testing.T) {
 
 	// A control character makes the URL unparseable, so building the
 	// request fails before anything is sent.
-	c := slack.NewClient("token").WithBaseURL("http://\x7f/")
+	c := slack.NewClient().WithAppConfigurationToken("token").WithBaseURL("http://\x7f/")
 	ctx := t.Context()
 
 	if _, err := c.AppsManifestCreate(ctx, slack.AppsManifestCreateRequest{}); err == nil {
@@ -496,7 +510,7 @@ func clientLogDrive(t *testing.T) string {
 	s := clientLogServer(t)
 
 	clients := []*slack.Client{
-		slack.NewClientFromRefreshToken(slack.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
+		slack.NewClient().WithRefreshToken(slack.RefreshToken(clientLogSecrets["refresh token passed in"])).WithBaseURL(s.URL + "/"),
 		s.client(slack.AppConfigurationToken(clientLogSecrets["app configuration token"])),
 	}
 	for _, c := range clients {

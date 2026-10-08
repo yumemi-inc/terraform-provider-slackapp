@@ -39,21 +39,7 @@ func (c *Client) AppsManifestCreate(
 	ctx context.Context,
 	request AppsManifestCreateRequest,
 ) (*AppsManifestCreateResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.create", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestCreateResponse](ctx, "apps.manifest.create", httpResponse)
+	return callMethod[AppsManifestCreateResponse](ctx, c, "apps.manifest.create", &request)
 }
 
 type AppsManifestUpdateRequest struct {
@@ -79,21 +65,7 @@ func (c *Client) AppsManifestUpdate(
 	ctx context.Context,
 	request AppsManifestUpdateRequest,
 ) (*AppsManifestUpdateResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.update", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestUpdateResponse](ctx, "apps.manifest.update", httpResponse)
+	return callMethod[AppsManifestUpdateResponse](ctx, c, "apps.manifest.update", &request)
 }
 
 type AppsManifestExportRequest struct {
@@ -119,21 +91,7 @@ func (c *Client) AppsManifestExport(
 	ctx context.Context,
 	request AppsManifestExportRequest,
 ) (*AppsManifestExportResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.export", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestExportResponse](ctx, "apps.manifest.export", httpResponse)
+	return callMethod[AppsManifestExportResponse](ctx, c, "apps.manifest.export", &request)
 }
 
 type AppsManifestDeleteRequest struct {
@@ -156,21 +114,7 @@ func (c *Client) AppsManifestDelete(
 	ctx context.Context,
 	request AppsManifestDeleteRequest,
 ) (*AppsManifestDeleteResponse, error) {
-	if err := c.ensureAppConfigurationToken(ctx); err != nil {
-		return nil, err
-	}
-
-	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, "apps.manifest.delete", &request)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := c.httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return readJSONResponse[AppsManifestDeleteResponse](ctx, "apps.manifest.delete", httpResponse)
+	return callMethod[AppsManifestDeleteResponse](ctx, c, "apps.manifest.delete", &request)
 }
 
 type ToolingTokensRotateResponse struct {
@@ -212,4 +156,34 @@ func (c *Client) ToolingTokensRotate(
 	}
 
 	return readJSONResponse[ToolingTokensRotateResponse](ctx, "tooling.tokens.rotate", httpResponse)
+}
+
+// callMethod calls methodName with the client's app configuration token.
+func callMethod[T response](ctx context.Context, c *Client, methodName string, request any) (*T, error) {
+	token, err := c.tokens.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return callMethodWithToken[T](ctx, c, methodName, token, request)
+}
+
+func callMethodWithToken[T response](
+	ctx context.Context,
+	c *Client,
+	methodName string,
+	token AppConfigurationToken,
+	request any,
+) (*T, error) {
+	httpRequest, err := c.createJSONRequest(ctx, http.MethodPost, methodName, token, request)
+	if err != nil {
+		return nil, err
+	}
+
+	httpResponse, err := c.httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return readJSONResponse[T](ctx, methodName, httpResponse)
 }

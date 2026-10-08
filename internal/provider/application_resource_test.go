@@ -862,5 +862,5 @@ resource "slackapp_application" "test" {
 // applicationResourceSlackClient is a Slack client pointed at the fake, for a test
 // to change Slack the way someone outside Terraform would.
 func applicationResourceSlackClient(f *fakeSlack) *slack.Client {
-	return slack.NewClient("test").WithBaseURL(f.baseURL())
+	return slack.NewClient().WithAppConfigurationToken("test").WithBaseURL(f.baseURL())
 }

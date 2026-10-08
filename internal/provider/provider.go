@@ -39,9 +39,9 @@ func configureSlackClient(d Model) (*slack.Client, error) {
 			return nil, errors.New("either app configuration token or refresh token must be provided")
 		}
 
-		client = slack.NewClient(slack.AppConfigurationToken(appConfigurationToken))
+		client = slack.NewClient().WithAppConfigurationToken(slack.AppConfigurationToken(appConfigurationToken))
 	} else {
-		client = slack.NewClientFromRefreshToken(slack.RefreshToken(refreshToken))
+		client = slack.NewClient().WithRefreshToken(slack.RefreshToken(refreshToken))
 	}
 
 	if baseURL != "" {

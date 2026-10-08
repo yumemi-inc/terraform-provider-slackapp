@@ -9,11 +9,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
+//declscope:shared // methods.go calls every method through it
 type response interface {
 	IsOk() bool
 	// logFields returns the fields of a reply that are safe to log. Replies
 	// carry tokens and app credentials, so readJSONResponse never logs a
 	// whole reply; each type names what may be logged instead.
+	//
+	//declscope:private
 	logFields() map[string]any
 }
 
